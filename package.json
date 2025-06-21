@@ -1,5 +1,5 @@
 {
-  "name": "nocta-ui-cli",
+  "name": "nocta-ui",
   "version": "1.0.0",
   "description": "CLI for Nocta UI Components Library",
   "main": "dist/cli.js",
