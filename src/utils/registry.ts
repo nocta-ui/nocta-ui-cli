@@ -1,0 +1,60 @@
+import { Registry, Component } from '../types';
+
+const REGISTRY_URL = 'https://raw.githubusercontent.com/66HEX/nocta-ui/main/registry.json';
+const COMPONENTS_BASE_URL = 'https://raw.githubusercontent.com/66HEX/nocta-ui/main';
+
+export async function getRegistry(): Promise<Registry> {
+  try {
+    const response = await fetch(REGISTRY_URL);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch registry: ${response.statusText}`);
+    }
+    return await response.json() as Registry;
+  } catch (error) {
+    throw new Error(`Failed to load registry: ${error}`);
+  }
+}
+
+export async function getComponent(name: string): Promise<Component> {
+  const registry = await getRegistry();
+  const component = registry.components[name];
+  
+  if (!component) {
+    throw new Error(`Component "${name}" not found`);
+  }
+  
+  return component;
+}
+
+export async function getComponentFile(filePath: string): Promise<string> {
+  try {
+    const response = await fetch(`${COMPONENTS_BASE_URL}/${filePath}`);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch component file: ${response.statusText}`);
+    }
+    return await response.text();
+  } catch (error) {
+    throw new Error(`Failed to load component file: ${error}`);
+  }
+}
+
+export async function listComponents(): Promise<Component[]> {
+  const registry = await getRegistry();
+  return Object.values(registry.components);
+}
+
+export async function getComponentsByCategory(category?: string): Promise<Component[]> {
+  const registry = await getRegistry();
+  const components = Object.values(registry.components);
+  
+  if (!category) {
+    return components;
+  }
+  
+  return components.filter(component => component.category === category);
+}
+
+export async function getCategories(): Promise<Record<string, { name: string; description: string; components: string[] }>> {
+  const registry = await getRegistry();
+  return registry.categories;
+}
