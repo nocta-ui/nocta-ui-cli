@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.add = add;
 const chalk_1 = __importDefault(require("chalk"));
 const ora_1 = __importDefault(require("ora"));
+const inquirer_1 = __importDefault(require("inquirer"));
 const registry_1 = require("../utils/registry");
 const files_1 = require("../utils/files");
 async function add(componentName) {
@@ -27,7 +28,39 @@ async function add(componentName) {
                 content
             };
         }));
-        spinner.text = `Installing ${componentName} files...`;
+        spinner.text = `Checking existing files...`;
+        // Check for existing files
+        const existingFiles = [];
+        for (const file of componentFiles) {
+            const targetPath = (0, files_1.resolveComponentPath)(file.path, config);
+            if (await (0, files_1.fileExists)(targetPath)) {
+                existingFiles.push({ file, targetPath });
+            }
+        }
+        // If files exist, ask user for confirmation
+        if (existingFiles.length > 0) {
+            spinner.stop();
+            console.log(chalk_1.default.yellow(`\n⚠️  The following files already exist:`));
+            existingFiles.forEach(({ targetPath }) => {
+                console.log(chalk_1.default.gray(`   ${targetPath}`));
+            });
+            const { shouldOverwrite } = await inquirer_1.default.prompt([
+                {
+                    type: 'confirm',
+                    name: 'shouldOverwrite',
+                    message: 'Do you want to overwrite these files?',
+                    default: false,
+                },
+            ]);
+            if (!shouldOverwrite) {
+                console.log(chalk_1.default.red('❌ Installation cancelled'));
+                return;
+            }
+            spinner.start(`Installing ${componentName} files...`);
+        }
+        else {
+            spinner.text = `Installing ${componentName} files...`;
+        }
         for (const file of componentFiles) {
             const targetPath = (0, files_1.resolveComponentPath)(file.path, config);
             await (0, files_1.writeComponentFile)(targetPath, file.content);

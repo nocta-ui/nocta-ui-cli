@@ -21,6 +21,11 @@ export async function writeConfig(config: Config): Promise<void> {
   await fs.writeJson(configPath, config, { spaces: 2 });
 }
 
+export async function fileExists(filePath: string): Promise<boolean> {
+  const fullPath = path.join(process.cwd(), filePath);
+  return await fs.pathExists(fullPath);
+}
+
 export async function writeComponentFile(filePath: string, content: string): Promise<void> {
   const fullPath = path.join(process.cwd(), filePath);
   await fs.ensureDir(path.dirname(fullPath));
@@ -28,13 +33,10 @@ export async function writeComponentFile(filePath: string, content: string): Pro
 }
 
 export function resolveComponentPath(componentFilePath: string, config: Config): string {
-  // Usuń całą ścieżkę do pliku i zostaw tylko nazwę pliku
   const fileName = path.basename(componentFilePath);
   
-  // Wyciągnij folder komponentu z ścieżki (np. z "app/components/ui/button/button.tsx" -> "button")
   const componentFolder = path.basename(path.dirname(componentFilePath));
   
-  // Utwórz docelową ścieżkę: components/ui/button.tsx
   return path.join(config.aliases.components, 'ui', fileName);
 }
 
@@ -44,7 +46,6 @@ export async function installDependencies(dependencies: Record<string, string>):
 
   const { execSync } = require('child_process');
   
-  // Sprawdź który package manager jest używany
   let packageManager = 'npm';
   if (await fs.pathExists('yarn.lock')) {
     packageManager = 'yarn';

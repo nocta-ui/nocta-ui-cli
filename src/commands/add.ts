@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import ora from 'ora';
+import inquirer from 'inquirer';
 import { getComponent, getComponentFile } from '../utils/registry';
-import { readConfig, writeComponentFile, resolveComponentPath, installDependencies } from '../utils/files';
+import { readConfig, writeComponentFile, resolveComponentPath, installDependencies, fileExists } from '../utils/files';
 
 export async function add(componentName: string): Promise<void> {
   const spinner = ora(`Adding ${componentName}...`).start();
@@ -28,7 +29,44 @@ export async function add(componentName: string): Promise<void> {
       })
     );
 
-    spinner.text = `Installing ${componentName} files...`;
+    spinner.text = `Checking existing files...`;
+    
+    // Check for existing files
+    const existingFiles = [];
+    for (const file of componentFiles) {
+      const targetPath = resolveComponentPath(file.path, config);
+      if (await fileExists(targetPath)) {
+        existingFiles.push({ file, targetPath });
+      }
+    }
+
+    // If files exist, ask user for confirmation
+    if (existingFiles.length > 0) {
+      spinner.stop();
+      console.log(chalk.yellow(`\n⚠️  The following files already exist:`));
+      existingFiles.forEach(({ targetPath }) => {
+        console.log(chalk.gray(`   ${targetPath}`));
+      });
+
+      const { shouldOverwrite } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'shouldOverwrite',
+          message: 'Do you want to overwrite these files?',
+          default: false,
+        },
+      ]);
+
+      if (!shouldOverwrite) {
+        console.log(chalk.red('❌ Installation cancelled'));
+        return;
+      }
+      
+      spinner.start(`Installing ${componentName} files...`);
+    } else {
+      spinner.text = `Installing ${componentName} files...`;
+    }
+    
     for (const file of componentFiles) {
       const targetPath = resolveComponentPath(file.path, config);
       await writeComponentFile(targetPath, file.content);
