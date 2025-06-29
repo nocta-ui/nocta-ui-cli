@@ -9,3 +9,4 @@ export declare function getCategories(): Promise<Record<string, {
     description: string;
     components: string[];
 }>>;
+export declare function getComponentWithDependencies(name: string, visited?: Set<string>): Promise<Component[]>;

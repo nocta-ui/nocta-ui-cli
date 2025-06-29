@@ -1,8 +1,9 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
-import { getComponent, getComponentFile } from '../utils/registry';
+import { getComponent, getComponentFile, getComponentWithDependencies } from '../utils/registry';
 import { readConfig, writeComponentFile, resolveComponentPath, installDependencies, fileExists } from '../utils/files';
+import { ComponentFileWithContent } from '../types';
 
 export async function add(componentName: string): Promise<void> {
   const spinner = ora(`Adding ${componentName}...`).start();
@@ -17,23 +18,43 @@ export async function add(componentName: string): Promise<void> {
     }
 
     spinner.text = `Fetching ${componentName} component...`;
-    const component = await getComponent(componentName);
+    const allComponents = await getComponentWithDependencies(componentName);
+    const mainComponent = allComponents[allComponents.length - 1]; // Main component is last
+    
+    // Show user what will be installed
+    if (allComponents.length > 1) {
+      const dependencyNames = allComponents.slice(0, -1).map(c => c.name);
+      spinner.stop();
+      console.log(chalk.blue(`📦 Installing ${componentName} with internal dependencies:`));
+      dependencyNames.forEach(name => {
+        console.log(chalk.gray(`   • ${name}`));
+      });
+      console.log(chalk.gray(`   • ${mainComponent.name} (main component)`));
+      console.log('');
+      spinner.start(`Preparing components...`);
+    }
 
-    const componentFiles = await Promise.all(
-      component.files.map(async (file) => {
-        const content = await getComponentFile(file.path);
-        return {
-          ...file,
-          content
-        };
-      })
-    );
+    // Collect all files from all components
+    const allComponentFiles: ComponentFileWithContent[] = [];
+    for (const component of allComponents) {
+      const files = await Promise.all(
+        component.files.map(async (file) => {
+          const content = await getComponentFile(file.path);
+          return {
+            ...file,
+            content,
+            componentName: component.name
+          };
+        })
+      );
+      allComponentFiles.push(...files);
+    }
 
     spinner.text = `Checking existing files...`;
     
     // Check for existing files
     const existingFiles = [];
-    for (const file of componentFiles) {
+    for (const file of allComponentFiles) {
       const targetPath = resolveComponentPath(file.path, config);
       if (await fileExists(targetPath)) {
         existingFiles.push({ file, targetPath });
@@ -67,46 +88,52 @@ export async function add(componentName: string): Promise<void> {
       spinner.text = `Installing ${componentName} files...`;
     }
     
-    for (const file of componentFiles) {
+    for (const file of allComponentFiles) {
       const targetPath = resolveComponentPath(file.path, config);
       await writeComponentFile(targetPath, file.content);
     }
 
-    const deps = Object.keys(component.dependencies);
+    // Collect all dependencies from all components
+    const allDeps: Record<string, string> = {};
+    for (const component of allComponents) {
+      Object.assign(allDeps, component.dependencies);
+    }
+    
+    const deps = Object.keys(allDeps);
     if (deps.length > 0) {
       spinner.text = `Installing dependencies...`;
-      await installDependencies(component.dependencies);
+      await installDependencies(allDeps);
     }
 
-    spinner.succeed(`${component.name} added successfully!`);
+    spinner.succeed(`${mainComponent.name} added successfully!`);
 
-    console.log(chalk.green('\n✅ Component installed:'));
-    componentFiles.forEach(file => {
+    console.log(chalk.green('\n✅ Components installed:'));
+    allComponentFiles.forEach((file) => {
       const targetPath = resolveComponentPath(file.path, config);
-      console.log(chalk.gray(`   ${targetPath}`));
+      console.log(chalk.gray(`   ${targetPath} (${file.componentName})`));
     });
 
     if (deps.length > 0) {
       console.log(chalk.blue('\n📦 Dependencies installed:'));
       deps.forEach(dep => {
-        console.log(chalk.gray(`   ${dep}@${component.dependencies[dep]}`));
+        console.log(chalk.gray(`   ${dep}@${allDeps[dep]}`));
       });
     }
 
     console.log(chalk.blue('\n🚀 Import and use:'));
-    const firstFile = component.files[0];
+    const firstFile = mainComponent.files[0];
     const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
     const importPath = `@/${config.aliases.components}/${componentPath}`;
-    console.log(chalk.gray(`   import { ${component.exports.join(', ')} } from "${importPath}"`));
+    console.log(chalk.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
 
-    if (component.variants && component.variants.length > 0) {
+    if (mainComponent.variants && mainComponent.variants.length > 0) {
       console.log(chalk.blue('\n🎨 Available variants:'));
-      console.log(chalk.gray(`   ${component.variants.join(', ')}`));
+      console.log(chalk.gray(`   ${mainComponent.variants.join(', ')}`));
     }
 
-    if (component.sizes && component.sizes.length > 0) {
+    if (mainComponent.sizes && mainComponent.sizes.length > 0) {
       console.log(chalk.blue('\n📏 Available sizes:'));
-      console.log(chalk.gray(`   ${component.sizes.join(', ')}`));
+      console.log(chalk.gray(`   ${mainComponent.sizes.join(', ')}`));
     }
 
   } catch (error) {

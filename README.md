@@ -57,6 +57,49 @@ npx nocta-ui add dialog
 - Installs required dependencies automatically
 - Shows usage examples and available variants 
 
+## Advanced Features
+
+### Overwrite Protection
+When adding a component that already exists in your project, the CLI will:
+
+1. **Detect existing files** and show which ones would be overwritten
+2. **Ask for confirmation** before proceeding
+3. **Allow you to cancel** to prevent accidental data loss
+
+```bash
+npx nocta-ui add button
+
+⚠️  The following files already exist:
+   src/components/ui/button.tsx
+   
+? Do you want to overwrite these files? (y/N)
+```
+
+- Choose **Y** to overwrite existing files
+- Choose **N** (default) to cancel installation and preserve your changes
+
+### Automatic Internal Dependencies
+Some components depend on other components to work properly. The CLI automatically handles this:
+
+**Example: Adding Table component**
+```bash
+npx nocta-ui add table
+
+📦 Installing table with internal dependencies:
+   • spinner
+   • table (main component)
+
+✅ Components installed:
+   src/components/ui/spinner.tsx (spinner)
+   src/components/ui/table.tsx (table)
+```
+
+**Smart dependency resolution:**
+- **Recursive detection** - Finds all nested dependencies
+- **Duplicate prevention** - Avoids installing the same component twice
+- **Conflict checking** - Asks about overwriting for all affected files
+- **Clear communication** - Shows exactly what will be installed
+
 ## Requirements
 
 - React 18+

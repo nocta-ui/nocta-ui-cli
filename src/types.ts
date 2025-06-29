@@ -4,12 +4,18 @@ export interface ComponentFile {
   type: string;
 }
 
+export interface ComponentFileWithContent extends ComponentFile {
+  content: string;
+  componentName: string;
+}
+
 export interface Component {
   name: string;
   description: string;
   category: string;
   files: ComponentFile[];
   dependencies: Record<string, string>;
+  internalDependencies?: string[];
   exports: string[];
   props?: Record<string, string[]>;
   variants?: string[];

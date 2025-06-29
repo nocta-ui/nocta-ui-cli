@@ -1,6 +1,6 @@
 {
   "name": "nocta-ui",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "CLI for Nocta UI Components Library",
   "main": "dist/cli.js",
   "bin": {
@@ -30,8 +30,7 @@
     "commander": "^14.0.0",
     "fs-extra": "^11.3.0",
     "inquirer": "^12.6.3",
-    "ora": "^8.2.0",
-    "react": "^19.1.0"
+    "ora": "^8.2.0"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
