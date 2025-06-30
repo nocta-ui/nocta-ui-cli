@@ -74,9 +74,51 @@ async function init() {
             };
         }
         await (0, files_1.writeConfig)(config);
+        // Install required dependencies
+        spinner.text = 'Installing required dependencies...';
+        const requiredDependencies = {
+            'clsx': '^2.1.1',
+            'tailwind-merge': '^3.3.1'
+        };
+        try {
+            await (0, files_1.installDependencies)(requiredDependencies);
+        }
+        catch (error) {
+            spinner.warn('Dependencies installation failed, but you can install them manually');
+            console.log(chalk_1.default.yellow('💡 Run: npm install clsx tailwind-merge'));
+        }
+        // Create utils file
+        spinner.text = 'Creating utility functions...';
+        const utilsContent = `import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+`;
+        const utilsPath = `${config.aliases.utils}.ts`;
+        const utilsExists = await (0, files_1.fileExists)(utilsPath);
+        let utilsCreated = false;
+        if (utilsExists) {
+            spinner.stop();
+            console.log(chalk_1.default.yellow(`⚠️  ${utilsPath} already exists - skipping creation`));
+            spinner.start();
+        }
+        else {
+            await (0, files_1.writeComponentFile)(utilsPath, utilsContent);
+            utilsCreated = true;
+        }
         spinner.succeed('nocta-ui initialized successfully!');
         console.log(chalk_1.default.green('\n✅ Configuration created:'));
         console.log(chalk_1.default.gray(`   components.json`));
+        console.log(chalk_1.default.blue('\n📦 Dependencies installed:'));
+        console.log(chalk_1.default.gray(`   clsx@${requiredDependencies.clsx}`));
+        console.log(chalk_1.default.gray(`   tailwind-merge@${requiredDependencies['tailwind-merge']}`));
+        if (utilsCreated) {
+            console.log(chalk_1.default.green('\n🔧 Utility functions created:'));
+            console.log(chalk_1.default.gray(`   ${utilsPath}`));
+            console.log(chalk_1.default.gray(`   • cn() function for className merging`));
+        }
         if (isTailwindV4) {
             console.log(chalk_1.default.blue('\n🎨 Tailwind v4 detected!'));
             console.log(chalk_1.default.gray('   Make sure your CSS file includes @import "tailwindcss";'));

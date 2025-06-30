@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { writeConfig, readConfig } from '../utils/files';
+import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists } from '../utils/files';
 import { Config } from '../types';
 import fs from 'fs-extra';
 import path from 'path';
@@ -75,10 +75,57 @@ export async function init(): Promise<void> {
 
     await writeConfig(config);
 
+    // Install required dependencies
+    spinner.text = 'Installing required dependencies...';
+    const requiredDependencies = {
+      'clsx': '^2.1.1',
+      'tailwind-merge': '^3.3.1'
+    };
+    
+    try {
+      await installDependencies(requiredDependencies);
+    } catch (error) {
+      spinner.warn('Dependencies installation failed, but you can install them manually');
+      console.log(chalk.yellow('💡 Run: npm install clsx tailwind-merge'));
+    }
+
+    // Create utils file
+    spinner.text = 'Creating utility functions...';
+    const utilsContent = `import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+`;
+
+    const utilsPath = `${config.aliases.utils}.ts`;
+    const utilsExists = await fileExists(utilsPath);
+    let utilsCreated = false;
+    
+    if (utilsExists) {
+      spinner.stop();
+      console.log(chalk.yellow(`⚠️  ${utilsPath} already exists - skipping creation`));
+      spinner.start();
+    } else {
+      await writeComponentFile(utilsPath, utilsContent);
+      utilsCreated = true;
+    }
+
     spinner.succeed('nocta-ui initialized successfully!');
     
     console.log(chalk.green('\n✅ Configuration created:'));
     console.log(chalk.gray(`   components.json`));
+    
+    console.log(chalk.blue('\n📦 Dependencies installed:'));
+    console.log(chalk.gray(`   clsx@${requiredDependencies.clsx}`));
+    console.log(chalk.gray(`   tailwind-merge@${requiredDependencies['tailwind-merge']}`));
+    
+    if (utilsCreated) {
+      console.log(chalk.green('\n🔧 Utility functions created:'));
+      console.log(chalk.gray(`   ${utilsPath}`));
+      console.log(chalk.gray(`   • cn() function for className merging`));
+    }
     
     if (isTailwindV4) {
       console.log(chalk.blue('\n🎨 Tailwind v4 detected!'));

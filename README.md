@@ -39,6 +39,8 @@ npx nocta-ui init
 - Creates `components.json` configuration file
 - Auto-detects your framework (Next.js, Vite, or generic React)
 - Supports Tailwind CSS v3 and v4
+- **Installs required dependencies:** `clsx` and `tailwind-merge`
+- **Creates utility functions:** `@/lib/utils.ts` with `cn()` helper for className merging
 
 ### `list`
 Show all available components grouped by category:
