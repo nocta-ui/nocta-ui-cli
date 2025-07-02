@@ -12,3 +12,15 @@ export declare function checkTailwindInstallation(): Promise<{
     version?: string;
 }>;
 export declare function rollbackInitChanges(): Promise<void>;
+export interface FrameworkDetection {
+    framework: 'nextjs' | 'vite-react' | 'unknown';
+    version?: string;
+    details: {
+        hasConfig: boolean;
+        hasReactDependency: boolean;
+        hasFrameworkDependency: boolean;
+        appStructure?: 'app-router' | 'pages-router' | 'unknown';
+        configFiles: string[];
+    };
+}
+export declare function detectFramework(): Promise<FrameworkDetection>;

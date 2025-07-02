@@ -1,6 +1,6 @@
 {
   "name": "nocta-ui",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "CLI for Nocta UI Components Library",
   "main": "dist/cli.js",
   "bin": {
@@ -27,16 +27,19 @@
   ],
   "dependencies": {
     "chalk": "^5.4.1",
+    "clsx": "^2.1.1",
     "commander": "^14.0.0",
     "fs-extra": "^11.3.0",
     "inquirer": "^12.6.3",
-    "ora": "^8.2.0"
+    "ora": "^8.2.0",
+    "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^9.0.8",
     "@types/node": "^24.0.3",
     "nodemon": "^3.1.10",
+    "tailwindcss": "^4.1.11",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
   }

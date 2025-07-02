@@ -9,11 +9,13 @@ const chalk_1 = __importDefault(require("chalk"));
 const init_1 = require("./commands/init");
 const add_1 = require("./commands/add");
 const list_1 = require("./commands/list");
+// Import package.json to get the version dynamically
+const packageJson = require('../package.json');
 const program = new commander_1.Command();
 program
     .name('nocta-ui')
     .description('CLI for Nocta UI Components Library')
-    .version('1.0.0');
+    .version(packageJson.version);
 program
     .command('init')
     .description('Initialize your project with components config')

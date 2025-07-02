@@ -13,7 +13,7 @@ export async function list(): Promise<void> {
 
     spinner.stop();
 
-    console.log(chalk.blue.bold('\n📦 Available nocta-ui components:\n'));
+    console.log(chalk.blue.bold('\nAvailable nocta-ui components:\n'));
 
     Object.entries(categories).forEach(([categoryKey, category]) => {
       console.log(chalk.yellow.bold(`${category.name}:`));
@@ -26,23 +26,23 @@ export async function list(): Promise<void> {
         console.log(chalk.gray(`    ${component.description}`));
         
         if (component.variants && component.variants.length > 0) {
-          console.log(chalk.blue(`    Variants: ${component.variants.join(', ')}`));
+          console.log(chalk.blue(`  Variants: ${component.variants.join(', ')}`));
         }
         
         if (component.sizes && component.sizes.length > 0) {
-          console.log(chalk.blue(`    Sizes: ${component.sizes.join(', ')}`));
+          console.log(chalk.blue(`  Sizes: ${component.sizes.join(', ')}`));
         }
         
         console.log();
       });
     });
 
-    console.log(chalk.blue('\n🚀 Add a component:'));
-    console.log(chalk.gray('   npx nocta-ui add <component-name>'));
+    console.log(chalk.blue('\nAdd a component:'));
+    console.log(chalk.gray('  npx nocta-ui add <component-name>'));
     
-    console.log(chalk.blue('\n📚 Examples:'));
-    console.log(chalk.gray('   npx nocta-ui add button'));
-    console.log(chalk.gray('   npx nocta-ui add card'));
+    console.log(chalk.blue('\nExamples:'));
+    console.log(chalk.gray('  npx nocta-ui add button'));
+    console.log(chalk.gray('  npx nocta-ui add card'));
 
   } catch (error) {
     spinner.fail('Failed to fetch components');

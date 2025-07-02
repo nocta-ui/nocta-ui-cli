@@ -12,8 +12,8 @@ export async function add(componentName: string): Promise<void> {
     const config = await readConfig();
     if (!config) {
       spinner.fail('Project not initialized');
-      console.log(chalk.red('❌ components.json not found'));
-      console.log(chalk.yellow('💡 Run "npx nocta-ui init" first'));
+      console.log(chalk.red('components.json not found'));
+      console.log(chalk.yellow('Run "npx nocta-ui init" first'));
       return;
     }
 
@@ -25,7 +25,7 @@ export async function add(componentName: string): Promise<void> {
     if (allComponents.length > 1) {
       const dependencyNames = allComponents.slice(0, -1).map(c => c.name);
       spinner.stop();
-      console.log(chalk.blue(`📦 Installing ${componentName} with internal dependencies:`));
+      console.log(chalk.blue(`Installing ${componentName} with internal dependencies:`));
       dependencyNames.forEach(name => {
         console.log(chalk.gray(`   • ${name}`));
       });
@@ -64,7 +64,7 @@ export async function add(componentName: string): Promise<void> {
     // If files exist, ask user for confirmation
     if (existingFiles.length > 0) {
       spinner.stop();
-      console.log(chalk.yellow(`\n⚠️  The following files already exist:`));
+      console.log(chalk.yellow(`\nThe following files already exist:`));
       existingFiles.forEach(({ targetPath }) => {
         console.log(chalk.gray(`   ${targetPath}`));
       });
@@ -79,7 +79,7 @@ export async function add(componentName: string): Promise<void> {
       ]);
 
       if (!shouldOverwrite) {
-        console.log(chalk.red('❌ Installation cancelled'));
+        console.log(chalk.red('Installation cancelled'));
         return;
       }
       
@@ -107,32 +107,32 @@ export async function add(componentName: string): Promise<void> {
 
     spinner.succeed(`${mainComponent.name} added successfully!`);
 
-    console.log(chalk.green('\n✅ Components installed:'));
+    console.log(chalk.green('\nComponents installed:'));
     allComponentFiles.forEach((file) => {
       const targetPath = resolveComponentPath(file.path, config);
       console.log(chalk.gray(`   ${targetPath} (${file.componentName})`));
     });
 
     if (deps.length > 0) {
-      console.log(chalk.blue('\n📦 Dependencies installed:'));
+      console.log(chalk.blue('\nDependencies installed:'));
       deps.forEach(dep => {
         console.log(chalk.gray(`   ${dep}@${allDeps[dep]}`));
       });
     }
 
-    console.log(chalk.blue('\n🚀 Import and use:'));
+    console.log(chalk.blue('\nImport and use:'));
     const firstFile = mainComponent.files[0];
     const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
     const importPath = `@/${config.aliases.components}/${componentPath}`;
     console.log(chalk.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
 
     if (mainComponent.variants && mainComponent.variants.length > 0) {
-      console.log(chalk.blue('\n🎨 Available variants:'));
+      console.log(chalk.blue('\nAvailable variants:'));
       console.log(chalk.gray(`   ${mainComponent.variants.join(', ')}`));
     }
 
     if (mainComponent.sizes && mainComponent.sizes.length > 0) {
-      console.log(chalk.blue('\n📏 Available sizes:'));
+      console.log(chalk.blue('\nAvailable sizes:'));
       console.log(chalk.gray(`   ${mainComponent.sizes.join(', ')}`));
     }
 
@@ -141,10 +141,10 @@ export async function add(componentName: string): Promise<void> {
     
     if (error instanceof Error) {
       if (error.message.includes('not found')) {
-        console.log(chalk.red(`❌ Component "${componentName}" not found`));
-        console.log(chalk.yellow('💡 Run "npx nocta-ui list" to see available components'));
+        console.log(chalk.red(`Component "${componentName}" not found`));
+        console.log(chalk.yellow('Run "npx nocta-ui list" to see available components'));
       } else {
-        console.log(chalk.red(`❌ ${error.message}`));
+        console.log(chalk.red(`${error.message}`));
       }
     }
     

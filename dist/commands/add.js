@@ -15,8 +15,8 @@ async function add(componentName) {
         const config = await (0, files_1.readConfig)();
         if (!config) {
             spinner.fail('Project not initialized');
-            console.log(chalk_1.default.red('❌ components.json not found'));
-            console.log(chalk_1.default.yellow('💡 Run "npx nocta-ui init" first'));
+            console.log(chalk_1.default.red('components.json not found'));
+            console.log(chalk_1.default.yellow('Run "npx nocta-ui init" first'));
             return;
         }
         spinner.text = `Fetching ${componentName} component...`;
@@ -26,7 +26,7 @@ async function add(componentName) {
         if (allComponents.length > 1) {
             const dependencyNames = allComponents.slice(0, -1).map(c => c.name);
             spinner.stop();
-            console.log(chalk_1.default.blue(`📦 Installing ${componentName} with internal dependencies:`));
+            console.log(chalk_1.default.blue(`Installing ${componentName} with internal dependencies:`));
             dependencyNames.forEach(name => {
                 console.log(chalk_1.default.gray(`   • ${name}`));
             });
@@ -59,7 +59,7 @@ async function add(componentName) {
         // If files exist, ask user for confirmation
         if (existingFiles.length > 0) {
             spinner.stop();
-            console.log(chalk_1.default.yellow(`\n⚠️  The following files already exist:`));
+            console.log(chalk_1.default.yellow(`\nThe following files already exist:`));
             existingFiles.forEach(({ targetPath }) => {
                 console.log(chalk_1.default.gray(`   ${targetPath}`));
             });
@@ -72,7 +72,7 @@ async function add(componentName) {
                 },
             ]);
             if (!shouldOverwrite) {
-                console.log(chalk_1.default.red('❌ Installation cancelled'));
+                console.log(chalk_1.default.red('Installation cancelled'));
                 return;
             }
             spinner.start(`Installing ${componentName} files...`);
@@ -95,28 +95,28 @@ async function add(componentName) {
             await (0, files_1.installDependencies)(allDeps);
         }
         spinner.succeed(`${mainComponent.name} added successfully!`);
-        console.log(chalk_1.default.green('\n✅ Components installed:'));
+        console.log(chalk_1.default.green('\nComponents installed:'));
         allComponentFiles.forEach((file) => {
             const targetPath = (0, files_1.resolveComponentPath)(file.path, config);
             console.log(chalk_1.default.gray(`   ${targetPath} (${file.componentName})`));
         });
         if (deps.length > 0) {
-            console.log(chalk_1.default.blue('\n📦 Dependencies installed:'));
+            console.log(chalk_1.default.blue('\nDependencies installed:'));
             deps.forEach(dep => {
                 console.log(chalk_1.default.gray(`   ${dep}@${allDeps[dep]}`));
             });
         }
-        console.log(chalk_1.default.blue('\n🚀 Import and use:'));
+        console.log(chalk_1.default.blue('\nImport and use:'));
         const firstFile = mainComponent.files[0];
         const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
         const importPath = `@/${config.aliases.components}/${componentPath}`;
         console.log(chalk_1.default.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
         if (mainComponent.variants && mainComponent.variants.length > 0) {
-            console.log(chalk_1.default.blue('\n🎨 Available variants:'));
+            console.log(chalk_1.default.blue('\nAvailable variants:'));
             console.log(chalk_1.default.gray(`   ${mainComponent.variants.join(', ')}`));
         }
         if (mainComponent.sizes && mainComponent.sizes.length > 0) {
-            console.log(chalk_1.default.blue('\n📏 Available sizes:'));
+            console.log(chalk_1.default.blue('\nAvailable sizes:'));
             console.log(chalk_1.default.gray(`   ${mainComponent.sizes.join(', ')}`));
         }
     }
@@ -124,11 +124,11 @@ async function add(componentName) {
         spinner.fail(`Failed to add ${componentName}`);
         if (error instanceof Error) {
             if (error.message.includes('not found')) {
-                console.log(chalk_1.default.red(`❌ Component "${componentName}" not found`));
-                console.log(chalk_1.default.yellow('💡 Run "npx nocta-ui list" to see available components'));
+                console.log(chalk_1.default.red(`Component "${componentName}" not found`));
+                console.log(chalk_1.default.yellow('Run "npx nocta-ui list" to see available components'));
             }
             else {
-                console.log(chalk_1.default.red(`❌ ${error.message}`));
+                console.log(chalk_1.default.red(`${error.message}`));
             }
         }
         throw error;

@@ -5,12 +5,15 @@ import { init } from './commands/init';
 import { add } from './commands/add';
 import { list } from './commands/list';
 
+// Import package.json to get the version dynamically
+const packageJson = require('../package.json');
+
 const program = new Command();
 
 program
   .name('nocta-ui')
   .description('CLI for Nocta UI Components Library')
-  .version('1.0.0');
+  .version(packageJson.version);
 
 program
   .command('init')
