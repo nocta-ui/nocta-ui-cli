@@ -11,6 +11,8 @@ exports.resolveComponentPath = resolveComponentPath;
 exports.installDependencies = installDependencies;
 exports.addDesignTokensToCss = addDesignTokensToCss;
 exports.addDesignTokensToTailwindConfig = addDesignTokensToTailwindConfig;
+exports.checkTailwindInstallation = checkTailwindInstallation;
+exports.rollbackInitChanges = rollbackInitChanges;
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
 async function readConfig() {
@@ -179,5 +181,43 @@ module.exports = {
     }
     catch (error) {
         throw new Error(`Failed to add design tokens to Tailwind config: ${error}`);
+    }
+}
+async function checkTailwindInstallation() {
+    try {
+        const packageJson = await fs_extra_1.default.readJson('package.json');
+        const tailwindVersion = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
+        if (!tailwindVersion) {
+            return { installed: false };
+        }
+        // Also check if it exists in node_modules
+        const nodeModulesPath = path_1.default.join(process.cwd(), 'node_modules', 'tailwindcss');
+        const existsInNodeModules = await fs_extra_1.default.pathExists(nodeModulesPath);
+        return {
+            installed: existsInNodeModules,
+            version: tailwindVersion
+        };
+    }
+    catch (error) {
+        return { installed: false };
+    }
+}
+async function rollbackInitChanges() {
+    const filesToCheck = [
+        'components.json',
+        'tailwind.config.js',
+        'lib/utils.ts',
+        'src/lib/utils.ts'
+    ];
+    for (const file of filesToCheck) {
+        const fullPath = path_1.default.join(process.cwd(), file);
+        if (await fs_extra_1.default.pathExists(fullPath)) {
+            try {
+                await fs_extra_1.default.remove(fullPath);
+            }
+            catch (error) {
+                // Ignore errors when removing files
+            }
+        }
     }
 }

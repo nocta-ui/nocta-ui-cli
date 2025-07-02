@@ -7,3 +7,8 @@ export declare function resolveComponentPath(componentFilePath: string, config: 
 export declare function installDependencies(dependencies: Record<string, string>): Promise<void>;
 export declare function addDesignTokensToCss(cssFilePath: string): Promise<boolean>;
 export declare function addDesignTokensToTailwindConfig(configFilePath: string): Promise<boolean>;
+export declare function checkTailwindInstallation(): Promise<{
+    installed: boolean;
+    version?: string;
+}>;
+export declare function rollbackInitChanges(): Promise<void>;

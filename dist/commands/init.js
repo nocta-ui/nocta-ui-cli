@@ -18,18 +18,26 @@ async function init() {
             console.log(chalk_1.default.gray('Your project is already initialized.'));
             return;
         }
+        // Check if Tailwind CSS is installed
+        spinner.text = 'Checking Tailwind CSS installation...';
+        const tailwindCheck = await (0, files_1.checkTailwindInstallation)();
+        if (!tailwindCheck.installed) {
+            spinner.fail('Tailwind CSS is required but not found!');
+            console.log(chalk_1.default.red('\n❌ Tailwind CSS is not installed or not found in node_modules'));
+            console.log(chalk_1.default.yellow('💡 Please install Tailwind CSS first:'));
+            console.log(chalk_1.default.gray('   npm install -D tailwindcss'));
+            console.log(chalk_1.default.gray('   # or'));
+            console.log(chalk_1.default.gray('   yarn add -D tailwindcss'));
+            console.log(chalk_1.default.gray('   # or'));
+            console.log(chalk_1.default.gray('   pnpm add -D tailwindcss'));
+            console.log(chalk_1.default.blue('\n📚 Visit https://tailwindcss.com/docs/installation for setup guide'));
+            return;
+        }
+        spinner.text = `Found Tailwind CSS ${tailwindCheck.version} ✓`;
         const isNextJs = await fs_extra_1.default.pathExists('next.config.js') || await fs_extra_1.default.pathExists('next.config.mjs');
         const isVite = await fs_extra_1.default.pathExists('vite.config.js') || await fs_extra_1.default.pathExists('vite.config.ts');
-        let isTailwindV4 = false;
-        try {
-            const packageJson = await fs_extra_1.default.readJson('package.json');
-            const tailwindVersion = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
-            if (tailwindVersion && (tailwindVersion.includes('^4') || tailwindVersion.includes('4.'))) {
-                isTailwindV4 = true;
-            }
-        }
-        catch {
-        }
+        // Determine Tailwind version from already checked installation
+        const isTailwindV4 = tailwindCheck.version ? (tailwindCheck.version.includes('^4') || tailwindCheck.version.includes('4.')) : false;
         let config;
         if (isNextJs) {
             config = {
@@ -172,6 +180,14 @@ export function cn(...inputs: ClassValue[]) {
     }
     catch (error) {
         spinner.fail('Failed to initialize nocta-ui');
+        // Rollback any changes that might have been made
+        try {
+            await (0, files_1.rollbackInitChanges)();
+            console.log(chalk_1.default.yellow('🔄 Rolled back partial changes'));
+        }
+        catch (rollbackError) {
+            console.log(chalk_1.default.red('⚠️  Could not rollback some changes - please check manually'));
+        }
         throw error;
     }
 }

@@ -1,1 +1,43 @@
-{"dependencies": {"tailwindcss": "^4.0.0"}}
+{
+  "name": "nocta-ui",
+  "version": "1.4.0",
+  "description": "CLI for Nocta UI Components Library",
+  "main": "dist/cli.js",
+  "bin": {
+    "nocta-ui": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ui",
+    "components",
+    "cli",
+    "nocta"
+  ],
+  "author": "",
+  "license": "ISC",
+  "files": [
+    "dist/**/*",
+    "templates/**/*"
+  ],
+  "dependencies": {
+    "chalk": "^5.4.1",
+    "commander": "^14.0.0",
+    "fs-extra": "^11.3.0",
+    "inquirer": "^12.6.3",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.8",
+    "@types/node": "^24.0.3",
+    "nodemon": "^3.1.10",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  }
+}

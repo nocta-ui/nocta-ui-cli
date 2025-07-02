@@ -190,3 +190,45 @@ module.exports = {
     throw new Error(`Failed to add design tokens to Tailwind config: ${error}`);
   }
 }
+
+export async function checkTailwindInstallation(): Promise<{ installed: boolean; version?: string }> {
+  try {
+    const packageJson = await fs.readJson('package.json');
+    const tailwindVersion = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
+    
+    if (!tailwindVersion) {
+      return { installed: false };
+    }
+    
+    // Also check if it exists in node_modules
+    const nodeModulesPath = path.join(process.cwd(), 'node_modules', 'tailwindcss');
+    const existsInNodeModules = await fs.pathExists(nodeModulesPath);
+    
+    return { 
+      installed: existsInNodeModules, 
+      version: tailwindVersion 
+    };
+  } catch (error) {
+    return { installed: false };
+  }
+}
+
+export async function rollbackInitChanges(): Promise<void> {
+  const filesToCheck = [
+    'components.json',
+    'tailwind.config.js',
+    'lib/utils.ts',
+    'src/lib/utils.ts'
+  ];
+  
+  for (const file of filesToCheck) {
+    const fullPath = path.join(process.cwd(), file);
+    if (await fs.pathExists(fullPath)) {
+      try {
+        await fs.remove(fullPath);
+      } catch (error) {
+        // Ignore errors when removing files
+      }
+    }
+  }
+}
