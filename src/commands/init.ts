@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, addDesignTokensToTailwindConfig, checkTailwindInstallation, rollbackInitChanges, detectFramework } from '../utils/files';
+import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, addDesignTokensToTailwindConfig, checkTailwindInstallation, rollbackInitChanges, detectFramework, getTailwindConfigPath } from '../utils/files';
 import { Config } from '../types';
 import fs from 'fs-extra';
 import path from 'path';
@@ -79,6 +79,9 @@ export async function init(): Promise<void> {
     // Determine Tailwind version from already checked installation
     const isTailwindV4 = tailwindCheck.version ? (tailwindCheck.version.includes('^4') || tailwindCheck.version.startsWith('4.')) : false;
 
+    // Get the appropriate Tailwind config path based on TypeScript project detection
+    const tailwindConfigPath = await getTailwindConfigPath();
+
     let config: Config;
 
     if (frameworkDetection.framework === 'nextjs') {
@@ -87,7 +90,7 @@ export async function init(): Promise<void> {
         style: "default",
         tsx: true,
         tailwind: {
-          config: isTailwindV4 ? "" : "tailwind.config.js",
+          config: isTailwindV4 ? "" : tailwindConfigPath,
           css: isAppRouter ? "app/globals.css" : "styles/globals.css"
         },
         aliases: {
@@ -100,8 +103,8 @@ export async function init(): Promise<void> {
         style: "default",
         tsx: true,
         tailwind: {
-          config: isTailwindV4 ? "" : "tailwind.config.js",
-          css: "src/index.css"
+          config: isTailwindV4 ? "" : tailwindConfigPath,
+          css: "src/App.css"
         },
         aliases: {
           components: "src/components",
@@ -167,7 +170,7 @@ export function cn(...inputs: ClassValue[]) {
           tokensLocation = cssPath;
         }
       } else {
-        // For Tailwind v3, add tokens to tailwind.config.js
+        // For Tailwind v3, add tokens to tailwind config
         const configPath = config.tailwind.config;
         if (configPath) {
           const added = await addDesignTokensToTailwindConfig(configPath);
@@ -177,11 +180,10 @@ export function cn(...inputs: ClassValue[]) {
           }
         } else {
           // This shouldn't happen for v3, but create config if needed
-          const defaultConfigPath = 'tailwind.config.js';
-          const added = await addDesignTokensToTailwindConfig(defaultConfigPath);
+          const added = await addDesignTokensToTailwindConfig(tailwindConfigPath);
           if (added) {
             tokensAdded = true;
-            tokensLocation = defaultConfigPath;
+            tokensLocation = tailwindConfigPath;
           }
         }
       }

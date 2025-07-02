@@ -72,6 +72,8 @@ async function init() {
         spinner.text = `Found ${frameworkInfo} ✓`;
         // Determine Tailwind version from already checked installation
         const isTailwindV4 = tailwindCheck.version ? (tailwindCheck.version.includes('^4') || tailwindCheck.version.startsWith('4.')) : false;
+        // Get the appropriate Tailwind config path based on TypeScript project detection
+        const tailwindConfigPath = await (0, files_1.getTailwindConfigPath)();
         let config;
         if (frameworkDetection.framework === 'nextjs') {
             const isAppRouter = frameworkDetection.details.appStructure === 'app-router';
@@ -79,7 +81,7 @@ async function init() {
                 style: "default",
                 tsx: true,
                 tailwind: {
-                    config: isTailwindV4 ? "" : "tailwind.config.js",
+                    config: isTailwindV4 ? "" : tailwindConfigPath,
                     css: isAppRouter ? "app/globals.css" : "styles/globals.css"
                 },
                 aliases: {
@@ -93,8 +95,8 @@ async function init() {
                 style: "default",
                 tsx: true,
                 tailwind: {
-                    config: isTailwindV4 ? "" : "tailwind.config.js",
-                    css: "src/index.css"
+                    config: isTailwindV4 ? "" : tailwindConfigPath,
+                    css: "src/App.css"
                 },
                 aliases: {
                     components: "src/components",
@@ -156,7 +158,7 @@ export function cn(...inputs: ClassValue[]) {
                 }
             }
             else {
-                // For Tailwind v3, add tokens to tailwind.config.js
+                // For Tailwind v3, add tokens to tailwind config
                 const configPath = config.tailwind.config;
                 if (configPath) {
                     const added = await (0, files_1.addDesignTokensToTailwindConfig)(configPath);
@@ -167,11 +169,10 @@ export function cn(...inputs: ClassValue[]) {
                 }
                 else {
                     // This shouldn't happen for v3, but create config if needed
-                    const defaultConfigPath = 'tailwind.config.js';
-                    const added = await (0, files_1.addDesignTokensToTailwindConfig)(defaultConfigPath);
+                    const added = await (0, files_1.addDesignTokensToTailwindConfig)(tailwindConfigPath);
                     if (added) {
                         tokensAdded = true;
-                        tokensLocation = defaultConfigPath;
+                        tokensLocation = tailwindConfigPath;
                     }
                 }
             }

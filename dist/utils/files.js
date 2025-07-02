@@ -12,6 +12,8 @@ exports.installDependencies = installDependencies;
 exports.addDesignTokensToCss = addDesignTokensToCss;
 exports.addDesignTokensToTailwindConfig = addDesignTokensToTailwindConfig;
 exports.checkTailwindInstallation = checkTailwindInstallation;
+exports.isTypeScriptProject = isTypeScriptProject;
+exports.getTailwindConfigPath = getTailwindConfigPath;
 exports.rollbackInitChanges = rollbackInitChanges;
 exports.detectFramework = detectFramework;
 const fs_extra_1 = __importDefault(require("fs-extra"));
@@ -105,8 +107,37 @@ async function addDesignTokensToCss(cssFilePath) {
                 return false; // Tokens already exist
             }
         }
-        // Add tokens at the beginning of the file
-        const newContent = `${NOCTA_DESIGN_TOKENS}\n\n${cssContent}`;
+        // Split content into lines
+        const lines = cssContent.split('\n');
+        let lastImportIndex = -1;
+        // Find the last @import statement
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.startsWith('@import')) {
+                lastImportIndex = i;
+            }
+            else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//')) {
+                // Stop looking after we hit non-import, non-comment content
+                break;
+            }
+        }
+        let newContent;
+        if (lastImportIndex >= 0) {
+            // Insert tokens after the last import
+            const beforeImports = lines.slice(0, lastImportIndex + 1);
+            const afterImports = lines.slice(lastImportIndex + 1);
+            // Add some spacing and the tokens
+            const tokensWithSpacing = ['', NOCTA_DESIGN_TOKENS, ''];
+            newContent = [
+                ...beforeImports,
+                ...tokensWithSpacing,
+                ...afterImports
+            ].join('\n');
+        }
+        else {
+            // No imports found, add tokens at the beginning
+            newContent = `${NOCTA_DESIGN_TOKENS}\n\n${cssContent}`;
+        }
         await fs_extra_1.default.ensureDir(path_1.default.dirname(fullPath));
         await fs_extra_1.default.writeFile(fullPath, newContent, 'utf8');
         return true;
@@ -119,6 +150,7 @@ async function addDesignTokensToTailwindConfig(configFilePath) {
     const fullPath = path_1.default.join(process.cwd(), configFilePath);
     try {
         let configContent = '';
+        const isTypeScript = configFilePath.endsWith('.ts');
         if (await fs_extra_1.default.pathExists(fullPath)) {
             configContent = await fs_extra_1.default.readFile(fullPath, 'utf8');
             // Check if nocta colors already exist
@@ -128,7 +160,19 @@ async function addDesignTokensToTailwindConfig(configFilePath) {
         }
         else {
             // Create a basic tailwind config if it doesn't exist
-            configContent = `/** @type {import('tailwindcss').Config} */
+            if (isTypeScript) {
+                configContent = `import type { Config } from "tailwindcss";
+
+export default {
+  content: [],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+} satisfies Config;`;
+            }
+            else {
+                configContent = `/** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [],
   theme: {
@@ -136,29 +180,142 @@ module.exports = {
   },
   plugins: [],
 }`;
-        }
-        // Create properly formatted colors object using the defined constant
-        const colorsString = `colors: ${JSON.stringify(NOCTA_TAILWIND_V3_COLORS, null, 8).replace(/^/gm, '      ').trim()}`;
-        // Parse and modify the config
-        let modifiedContent = configContent;
-        // Find the theme.extend section and add colors
-        if (modifiedContent.includes('theme:') && modifiedContent.includes('extend:')) {
-            // Add colors to existing extend section
-            const extendRegex = /(extend:\s*{)(\s*)(})/;
-            if (extendRegex.test(modifiedContent)) {
-                modifiedContent = modifiedContent.replace(extendRegex, (match, before, whitespace, after) => {
-                    const isEmpty = whitespace.trim() === '';
-                    const separator = isEmpty ? '\n      ' : ',\n      ';
-                    return `${before}${separator}${colorsString}\n    ${after}`;
-                });
             }
         }
+        // Nocta colors object as a string
+        const noctaColorsObject = `"nocta": {
+        "50": "oklch(.985 0 0)",
+        "100": "oklch(.97 0 0)",
+        "200": "oklch(.922 0 0)",
+        "300": "oklch(.87 0 0)",
+        "400": "oklch(.708 0 0)",
+        "500": "oklch(.556 0 0)",
+        "600": "oklch(.444 .011 73.639)",
+        "700": "oklch(.371 0 0)",
+        "800": "oklch(.269 0 0)",
+        "900": "oklch(.205 0 0)",
+        "950": "oklch(.145 0 0)"
+      }`;
+        let modifiedContent = configContent;
+        // Look for existing colors section in extend
+        const lines = modifiedContent.split('\n');
+        let inExtend = false;
+        let inColors = false;
+        let extendIndent = '';
+        let colorsIndent = '';
+        let foundColors = false;
+        let foundExtend = false;
+        let colorsEndIndex = -1;
+        let extendEndIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const trimmed = line.trim();
+            // Detect extend section
+            if (trimmed.includes('extend:') && trimmed.includes('{')) {
+                inExtend = true;
+                foundExtend = true;
+                extendIndent = line.match(/^(\s*)/)?.[1] || '  ';
+                continue;
+            }
+            if (inExtend) {
+                // Detect colors section inside extend
+                if (trimmed.includes('colors:') && trimmed.includes('{')) {
+                    inColors = true;
+                    foundColors = true;
+                    colorsIndent = line.match(/^(\s*)/)?.[1] || '    ';
+                    continue;
+                }
+                // Find end of colors section (closing brace with comma or without)
+                if (inColors && (trimmed === '},' || trimmed === '}')) {
+                    const currentIndent = line.match(/^(\s*)/)?.[1] || '';
+                    if (currentIndent.length <= colorsIndent.length) {
+                        colorsEndIndex = i;
+                        inColors = false;
+                    }
+                    continue;
+                }
+                // Find end of extend section
+                if (!inColors && (trimmed === '},' || trimmed === '}')) {
+                    const currentIndent = line.match(/^(\s*)/)?.[1] || '';
+                    if (currentIndent.length <= extendIndent.length) {
+                        extendEndIndex = i;
+                        inExtend = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if (foundColors && colorsEndIndex > -1) {
+            // Add nocta colors to existing colors section
+            const beforeColorsEnd = lines.slice(0, colorsEndIndex);
+            const colorsEndLine = lines[colorsEndIndex];
+            const afterColorsEnd = lines.slice(colorsEndIndex + 1);
+            // Check if the last color has a comma
+            let lastColorLine = '';
+            for (let i = beforeColorsEnd.length - 1; i >= 0; i--) {
+                const line = beforeColorsEnd[i].trim();
+                if (line && !line.startsWith('colors:') && !line.includes('{')) {
+                    lastColorLine = line;
+                    break;
+                }
+            }
+            const needsComma = lastColorLine && !lastColorLine.endsWith(',');
+            const indentForNocta = colorsIndent + '  ';
+            // Add comma to last existing color if needed
+            if (needsComma) {
+                for (let i = beforeColorsEnd.length - 1; i >= 0; i--) {
+                    const line = beforeColorsEnd[i];
+                    const trimmed = line.trim();
+                    if (trimmed && !trimmed.startsWith('colors:') && !trimmed.includes('{') && !trimmed.includes('}')) {
+                        beforeColorsEnd[i] = line + ',';
+                        break;
+                    }
+                }
+            }
+            // Add nocta colors
+            const noctaLines = noctaColorsObject.split('\n').map(line => line ? indentForNocta + line : line);
+            modifiedContent = [
+                ...beforeColorsEnd,
+                ...noctaLines,
+                colorsEndLine,
+                ...afterColorsEnd
+            ].join('\n');
+        }
+        else if (foundExtend && extendEndIndex > -1) {
+            // Add colors section to existing extend
+            const beforeExtendEnd = lines.slice(0, extendEndIndex);
+            const extendEndLine = lines[extendEndIndex];
+            const afterExtendEnd = lines.slice(extendEndIndex + 1);
+            // Check if extend has existing content
+            let hasContent = false;
+            for (let i = beforeExtendEnd.length - 1; i >= 0; i--) {
+                const line = beforeExtendEnd[i].trim();
+                if (line && !line.includes('extend:') && !line.includes('{')) {
+                    hasContent = true;
+                    if (!line.endsWith(',')) {
+                        beforeExtendEnd[i] = beforeExtendEnd[i] + ',';
+                    }
+                    break;
+                }
+            }
+            const colorsLines = [
+                `${extendIndent}  colors: {`,
+                ...noctaColorsObject.split('\n').map(line => line ? `${extendIndent}    ${line}` : line),
+                `${extendIndent}  }${hasContent ? ',' : ''}`
+            ];
+            modifiedContent = [
+                ...beforeExtendEnd,
+                ...colorsLines,
+                extendEndLine,
+                ...afterExtendEnd
+            ].join('\n');
+        }
         else {
-            // Add complete theme.extend section
+            // No extend section, add complete theme.extend
             const themeRegex = /(theme:\s*{)(\s*)(})/;
             if (themeRegex.test(modifiedContent)) {
                 modifiedContent = modifiedContent.replace(themeRegex, (match, before, whitespace, after) => {
-                    return `${before}\n    extend: {\n      ${colorsString}\n    },\n  ${after}`;
+                    return `${before}\n    extend: {\n      colors: {\n        ${noctaColorsObject}\n      }\n    },\n  ${after}`;
                 });
             }
         }
@@ -189,10 +346,38 @@ async function checkTailwindInstallation() {
         return { installed: false };
     }
 }
+async function isTypeScriptProject() {
+    try {
+        const packageJson = await fs_extra_1.default.readJson('package.json');
+        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
+        // Check if TypeScript is installed
+        const hasTypeScript = 'typescript' in dependencies || '@types/node' in dependencies;
+        // Also check for tsconfig.json
+        const hasTsConfig = await fs_extra_1.default.pathExists('tsconfig.json');
+        return hasTypeScript || hasTsConfig;
+    }
+    catch (error) {
+        return false;
+    }
+}
+async function getTailwindConfigPath() {
+    const isTs = await isTypeScriptProject();
+    // Check if tailwind.config.ts exists (preferred for TS projects)
+    if (isTs && await fs_extra_1.default.pathExists('tailwind.config.ts')) {
+        return 'tailwind.config.ts';
+    }
+    // Check if tailwind.config.js exists
+    if (await fs_extra_1.default.pathExists('tailwind.config.js')) {
+        return 'tailwind.config.js';
+    }
+    // Return preferred extension based on project type
+    return isTs ? 'tailwind.config.ts' : 'tailwind.config.js';
+}
 async function rollbackInitChanges() {
     const filesToCheck = [
         'components.json',
         'tailwind.config.js',
+        'tailwind.config.ts',
         'lib/utils.ts',
         'src/lib/utils.ts'
     ];

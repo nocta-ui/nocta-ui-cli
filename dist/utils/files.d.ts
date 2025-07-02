@@ -11,6 +11,8 @@ export declare function checkTailwindInstallation(): Promise<{
     installed: boolean;
     version?: string;
 }>;
+export declare function isTypeScriptProject(): Promise<boolean>;
+export declare function getTailwindConfigPath(): Promise<string>;
 export declare function rollbackInitChanges(): Promise<void>;
 export interface FrameworkDetection {
     framework: 'nextjs' | 'vite-react' | 'unknown';
