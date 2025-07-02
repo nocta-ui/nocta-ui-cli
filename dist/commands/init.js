@@ -108,6 +108,36 @@ export function cn(...inputs: ClassValue[]) {
             await (0, files_1.writeComponentFile)(utilsPath, utilsContent);
             utilsCreated = true;
         }
+        // Add design tokens
+        spinner.text = 'Adding Nocta design tokens...';
+        let tokensAdded = false;
+        let tokensLocation = '';
+        try {
+            if (isTailwindV4) {
+                // For Tailwind v4, add tokens to CSS file
+                const cssPath = config.tailwind.css;
+                const added = await (0, files_1.addDesignTokensToCss)(cssPath);
+                if (added) {
+                    tokensAdded = true;
+                    tokensLocation = cssPath;
+                }
+            }
+            else {
+                // For Tailwind v3, add tokens to tailwind.config.js
+                const configPath = config.tailwind.config;
+                if (configPath) {
+                    const added = await (0, files_1.addDesignTokensToTailwindConfig)(configPath);
+                    if (added) {
+                        tokensAdded = true;
+                        tokensLocation = configPath;
+                    }
+                }
+            }
+        }
+        catch (error) {
+            spinner.warn('Design tokens installation failed, but you can add them manually');
+            console.log(chalk_1.default.yellow('💡 See documentation for manual token installation'));
+        }
         spinner.succeed('nocta-ui initialized successfully!');
         console.log(chalk_1.default.green('\n✅ Configuration created:'));
         console.log(chalk_1.default.gray(`   components.json`));
@@ -118,6 +148,20 @@ export function cn(...inputs: ClassValue[]) {
             console.log(chalk_1.default.green('\n🔧 Utility functions created:'));
             console.log(chalk_1.default.gray(`   ${utilsPath}`));
             console.log(chalk_1.default.gray(`   • cn() function for className merging`));
+        }
+        if (tokensAdded) {
+            console.log(chalk_1.default.green('\n🎨 Design tokens added:'));
+            console.log(chalk_1.default.gray(`   ${tokensLocation}`));
+            console.log(chalk_1.default.gray(`   • Nocta color palette (nocta-50 to nocta-950)`));
+            if (isTailwindV4) {
+                console.log(chalk_1.default.gray(`   • Use: text-nocta-500, bg-nocta-100, etc.`));
+            }
+            else {
+                console.log(chalk_1.default.gray(`   • Use: text-nocta-500, bg-nocta-100, etc.`));
+            }
+        }
+        else if (!tokensAdded && tokensLocation === '') {
+            console.log(chalk_1.default.yellow('\n⚠️  Design tokens skipped (already exist or error occurred)'));
         }
         if (isTailwindV4) {
             console.log(chalk_1.default.blue('\n🎨 Tailwind v4 detected!'));
