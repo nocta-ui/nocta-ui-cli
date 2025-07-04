@@ -1,9 +1,9 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { Config } from '../types';
+import { Config, Theme, AVAILABLE_THEMES } from '../types';
 
 export async function readConfig(): Promise<Config | null> {
-  const configPath = path.join(process.cwd(), 'components.json');
+  const configPath = path.join(process.cwd(), 'nocta.config.json');
   
   if (!(await fs.pathExists(configPath))) {
     return null;
@@ -12,12 +12,12 @@ export async function readConfig(): Promise<Config | null> {
   try {
     return await fs.readJson(configPath);
   } catch (error) {
-    throw new Error(`Failed to read components.json: ${error}`);
+    throw new Error(`Failed to read nocta.config.json: ${error}`);
   }
 }
 
 export async function writeConfig(config: Config): Promise<void> {
-  const configPath = path.join(process.cwd(), 'components.json');
+  const configPath = path.join(process.cwd(), 'nocta.config.json');
   await fs.writeJson(configPath, config, { spaces: 2 });
 }
 
@@ -63,40 +63,13 @@ export async function installDependencies(dependencies: Record<string, string>):
   execSync(installCmd, { stdio: 'inherit' });
 }
 
-const NOCTA_DESIGN_TOKENS = `@theme {
-  --color-nocta-950: oklch(.145 0 0);
-  --color-nocta-900: oklch(.205 0 0);
-  --color-nocta-800: oklch(.269 0 0);
-  --color-nocta-700: oklch(.371 0 0);
-  --color-nocta-600: oklch(.444 .011 73.639);
-  --color-nocta-500: oklch(.556 0 0);
-  --color-nocta-400: oklch(.708 0 0);
-  --color-nocta-300: oklch(.87 0 0);
-  --color-nocta-200: oklch(.922 0 0);
-  --color-nocta-100: oklch(.97 0 0);
-  --color-nocta-50: oklch(.985 0 0);
-}`;
-
-const NOCTA_TAILWIND_V3_COLORS = {
-  nocta: {
-    50: 'oklch(.985 0 0)',
-    100: 'oklch(.97 0 0)',
-    200: 'oklch(.922 0 0)',
-    300: 'oklch(.87 0 0)',
-    400: 'oklch(.708 0 0)',
-    500: 'oklch(.556 0 0)',
-    600: 'oklch(.444 .011 73.639)',
-    700: 'oklch(.371 0 0)',
-    800: 'oklch(.269 0 0)',
-    900: 'oklch(.205 0 0)',
-    950: 'oklch(.145 0 0)'
-  }
-};
-
-export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean> {
+export async function addDesignTokensToCss(cssFilePath: string, themeName: string = 'charcoal'): Promise<boolean> {
   const fullPath = path.join(process.cwd(), cssFilePath);
   
   try {
+    const theme = getThemeByName(themeName);
+    const designTokens = generateDesignTokensCss(theme);
+    
     let cssContent = '';
     if (await fs.pathExists(fullPath)) {
       cssContent = await fs.readFile(fullPath, 'utf8');
@@ -129,7 +102,7 @@ export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean
       const afterImports = lines.slice(lastImportIndex + 1);
       
       // Add some spacing and the tokens
-      const tokensWithSpacing = ['', NOCTA_DESIGN_TOKENS, ''];
+      const tokensWithSpacing = ['', designTokens, ''];
       
       newContent = [
         ...beforeImports,
@@ -138,7 +111,7 @@ export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean
       ].join('\n');
     } else {
       // No imports found, add tokens at the beginning
-      newContent = `${NOCTA_DESIGN_TOKENS}\n\n${cssContent}`;
+      newContent = `${designTokens}\n\n${cssContent}`;
     }
     
     await fs.ensureDir(path.dirname(fullPath));
@@ -149,10 +122,12 @@ export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean
   }
 }
 
-export async function addDesignTokensToTailwindConfig(configFilePath: string): Promise<boolean> {
+export async function addDesignTokensToTailwindConfig(configFilePath: string, themeName: string = 'charcoal'): Promise<boolean> {
   const fullPath = path.join(process.cwd(), configFilePath);
   
   try {
+    const theme = getThemeByName(themeName);
+    
     let configContent = '';
     const isTypeScript = configFilePath.endsWith('.ts');
     
@@ -188,19 +163,7 @@ module.exports = {
     }
 
     // Nocta colors object as a string
-    const noctaColorsObject = `"nocta": {
-        "50": "oklch(.985 0 0)",
-        "100": "oklch(.97 0 0)",
-        "200": "oklch(.922 0 0)",
-        "300": "oklch(.87 0 0)",
-        "400": "oklch(.708 0 0)",
-        "500": "oklch(.556 0 0)",
-        "600": "oklch(.444 .011 73.639)",
-        "700": "oklch(.371 0 0)",
-        "800": "oklch(.269 0 0)",
-        "900": "oklch(.205 0 0)",
-        "950": "oklch(.145 0 0)"
-      }`;
+    const noctaColorsObject = generateTailwindV3ColorsString(theme);
 
     let modifiedContent = configContent;
 
@@ -411,7 +374,7 @@ export async function getTailwindConfigPath(): Promise<string> {
 
 export async function rollbackInitChanges(): Promise<void> {
   const filesToCheck = [
-    'components.json',
+    'nocta.config.json',
     'tailwind.config.js',
     'tailwind.config.ts',
     'lib/utils.ts',
@@ -599,4 +562,34 @@ export async function detectFramework(): Promise<FrameworkDetection> {
       }
     };
   }
+}
+
+export function getThemeByName(themeName: string): Theme {
+  const theme = AVAILABLE_THEMES.find(t => t.name === themeName);
+  if (!theme) {
+    throw new Error(`Theme "${themeName}" not found`);
+  }
+  return theme;
+}
+
+export function generateDesignTokensCss(theme: Theme): string {
+  const tokens = Object.entries(theme.colors)
+    .map(([key, value]) => `  --color-nocta-${key}: ${value};`)
+    .join('\n');
+  
+  return `@theme {\n${tokens}\n}`;
+}
+
+export function generateTailwindV3Colors(theme: Theme): Record<string, Record<string, string>> {
+  return {
+    nocta: theme.colors
+  };
+}
+
+export function generateTailwindV3ColorsString(theme: Theme): string {
+  const colors = Object.entries(theme.colors)
+    .map(([key, value]) => `        "${key}": "${value}"`)
+    .join(',\n');
+  
+  return `"nocta": {\n${colors}\n      }`;
 }

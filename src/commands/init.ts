@@ -1,7 +1,8 @@
 import chalk from 'chalk';
 import ora from 'ora';
+import inquirer from 'inquirer';
 import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, addDesignTokensToTailwindConfig, checkTailwindInstallation, rollbackInitChanges, detectFramework, getTailwindConfigPath } from '../utils/files';
-import { Config } from '../types';
+import { Config, AVAILABLE_THEMES } from '../types';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -12,7 +13,7 @@ export async function init(): Promise<void> {
     const existingConfig = await readConfig();
     if (existingConfig) {
       spinner.stop();
-      console.log(chalk.yellow('components.json already exists!'));
+      console.log(chalk.yellow('nocta.config.json already exists!'));
       console.log(chalk.gray('Your project is already initialized.'));
       return;
     }
@@ -82,6 +83,30 @@ export async function init(): Promise<void> {
     // Get the appropriate Tailwind config path based on TypeScript project detection
     const tailwindConfigPath = await getTailwindConfigPath();
 
+    // Theme selection
+    spinner.stop();
+    console.log(chalk.blue.bold('\nSelect a color theme:'));
+    AVAILABLE_THEMES.forEach((theme, index) => {
+      const isDefault = theme.name === 'charcoal' ? chalk.gray(' (default)') : '';
+      console.log(`  ${index + 1}. ${chalk.green(theme.displayName)} - ${chalk.gray(theme.description)}${isDefault}`);
+    });
+
+    const { selectedTheme } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'selectedTheme',
+        message: 'Choose your theme:',
+        choices: AVAILABLE_THEMES.map(theme => ({
+          name: `${theme.displayName} - ${theme.description}`,
+          value: theme.name
+        })),
+        default: 'charcoal'
+      }
+    ]);
+
+    console.log(chalk.green(`Selected theme: ${AVAILABLE_THEMES.find(t => t.name === selectedTheme)?.displayName}\n`));
+    spinner.start('Creating configuration...');
+
     let config: Config;
 
     if (frameworkDetection.framework === 'nextjs') {
@@ -89,6 +114,7 @@ export async function init(): Promise<void> {
       config = {
         style: "default",
         tsx: true,
+        theme: selectedTheme,
         tailwind: {
           config: isTailwindV4 ? "" : tailwindConfigPath,
           css: isAppRouter ? "app/globals.css" : "styles/globals.css"
@@ -102,6 +128,7 @@ export async function init(): Promise<void> {
       config = {
         style: "default",
         tsx: true,
+        theme: selectedTheme,
         tailwind: {
           config: isTailwindV4 ? "" : tailwindConfigPath,
           css: "src/App.css"
@@ -164,7 +191,7 @@ export function cn(...inputs: ClassValue[]) {
       if (isTailwindV4) {
         // For Tailwind v4, add tokens to CSS file
         const cssPath = config.tailwind.css;
-        const added = await addDesignTokensToCss(cssPath);
+        const added = await addDesignTokensToCss(cssPath, selectedTheme);
         if (added) {
           tokensAdded = true;
           tokensLocation = cssPath;
@@ -173,14 +200,14 @@ export function cn(...inputs: ClassValue[]) {
         // For Tailwind v3, add tokens to tailwind config
         const configPath = config.tailwind.config;
         if (configPath) {
-          const added = await addDesignTokensToTailwindConfig(configPath);
+          const added = await addDesignTokensToTailwindConfig(configPath, selectedTheme);
           if (added) {
             tokensAdded = true;
             tokensLocation = configPath;
           }
         } else {
           // This shouldn't happen for v3, but create config if needed
-          const added = await addDesignTokensToTailwindConfig(tailwindConfigPath);
+          const added = await addDesignTokensToTailwindConfig(tailwindConfigPath, selectedTheme);
           if (added) {
             tokensAdded = true;
             tokensLocation = tailwindConfigPath;
@@ -195,7 +222,10 @@ export function cn(...inputs: ClassValue[]) {
     spinner.succeed('nocta-ui initialized successfully!');
     
     console.log(chalk.green('\nConfiguration created:'));
-    console.log(chalk.gray(`   components.json (${frameworkInfo})`));
+    console.log(chalk.gray(`   nocta.config.json (${frameworkInfo})`));
+    
+    console.log(chalk.blue('\nTheme selected:'));
+    console.log(chalk.gray(`   ${AVAILABLE_THEMES.find(t => t.name === selectedTheme)?.displayName} (${selectedTheme})`));
     
     console.log(chalk.blue('\nDependencies installed:'));
     console.log(chalk.gray(`   clsx@${requiredDependencies.clsx}`));
@@ -211,6 +241,7 @@ export function cn(...inputs: ClassValue[]) {
       console.log(chalk.green('\nDesign tokens added:'));
       console.log(chalk.gray(`   ${tokensLocation}`));
       console.log(chalk.gray(`   • Nocta color palette (nocta-50 to nocta-950)`));
+      console.log(chalk.gray(`   • Theme: ${AVAILABLE_THEMES.find(t => t.name === selectedTheme)?.displayName}`));
       if (isTailwindV4) {
         console.log(chalk.gray(`   • Use: text-nocta-500, bg-nocta-100, etc.`));
       } else {

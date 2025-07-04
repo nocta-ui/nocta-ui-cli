@@ -36,6 +36,7 @@ export interface Registry {
 export interface Config {
     style: string;
     tsx: boolean;
+    theme: string;
     tailwind: {
         config: string;
         css: string;
@@ -45,3 +46,13 @@ export interface Config {
         utils: string;
     };
 }
+export interface ThemeColors {
+    [key: string]: string;
+}
+export interface Theme {
+    name: string;
+    displayName: string;
+    description: string;
+    colors: ThemeColors;
+}
+export declare const AVAILABLE_THEMES: Theme[];

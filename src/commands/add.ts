@@ -12,7 +12,7 @@ export async function add(componentName: string): Promise<void> {
     const config = await readConfig();
     if (!config) {
       spinner.fail('Project not initialized');
-      console.log(chalk.red('components.json not found'));
+      console.log(chalk.red('nocta.config.json not found'));
       console.log(chalk.yellow('Run "npx nocta-ui init" first'));
       return;
     }

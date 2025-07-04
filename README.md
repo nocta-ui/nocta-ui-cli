@@ -40,9 +40,10 @@ Initialize your project with Nocta UI configuration:
 npx nocta-ui init
 ```
 - **Validates Tailwind CSS installation** - Ensures Tailwind is properly installed
-- Creates `components.json` configuration file
-- Auto-detects your framework (Next.js, Vite, or generic React)
+- Creates `nocta.config.json` configuration file
+- Auto-detects your framework (Next.js, Vite)
 - Supports Tailwind CSS v3 and v4
+- **Interactive theme selection** - Choose from 4 color themes
 - **Installs required dependencies:** `clsx` and `tailwind-merge`
 - **Creates utility functions:** `@/lib/utils.ts` with `cn()` helper for className merging
 - **Adds Nocta design tokens** - Beautiful color palette (nocta-50 to nocta-950)
@@ -53,11 +54,26 @@ npx nocta-ui init
 
 ⠦ Checking Tailwind CSS installation...
 ✔ Found Tailwind CSS ^3.4.0 ✓
+⠦ Detecting project framework...
+✔ Found Next.js 15.0.3 (App Router) ✓
+
+Select a color theme:
+  1. Charcoal - Neutral gray theme (default)
+  2. Jade - Subtle green theme
+  3. Copper - Warm copper theme
+  4. Cobalt - Cool blue theme
+
+? Choose your theme: Jade - Subtle green theme
+✔ Selected theme: Jade
+
 ⠦ Installing required dependencies...
 ✔ nocta-ui initialized successfully!
 
 Configuration created:
-   components.json
+   nocta.config.json (Next.js 15.0.3 App Router)
+
+Theme selected:
+   Jade (jade)
 
 Dependencies installed:
    clsx@^2.1.1
@@ -70,6 +86,7 @@ Utility functions created:
 Design tokens added:
    tailwind.config.js
    • Nocta color palette (nocta-50 to nocta-950)
+   • Theme: Jade
    • Use: text-nocta-500, bg-nocta-100, etc.
 ```
 
@@ -93,7 +110,7 @@ npx nocta-ui add dialog
 ## Advanced Features
 
 ### Design Tokens Integration
-The CLI automatically adds the beautiful Nocta color palette to your project:
+The CLI automatically adds the beautiful Nocta color palette to your project. Colors are automatically generated based on your selected theme:
 
 **Tailwind CSS v3** - Added to `tailwind.config.js`:
 ```javascript
@@ -102,9 +119,9 @@ module.exports = {
     extend: {
       colors: {
         nocta: {
-          50: 'oklch(.985 0 0)',
-          100: 'oklch(.97 0 0)',
-          200: 'oklch(.922 0 0)',
+          50: 'oklch(.985 0 0)',      // Charcoal theme
+          100: 'oklch(.97 0 0)',      // Values change based on
+          200: 'oklch(.922 0 0)',     // your selected theme
           // ... up to 950
         }
       }
@@ -116,9 +133,9 @@ module.exports = {
 **Tailwind CSS v4** - Added to your CSS file:
 ```css
 @theme {
-  --color-nocta-50: oklch(.985 0 0);
-  --color-nocta-100: oklch(.97 0 0);
-  --color-nocta-200: oklch(.922 0 0);
+  --color-nocta-50: oklch(.985 0 0);    /* Charcoal theme */
+  --color-nocta-100: oklch(.97 0 0);    /* Values change based on */
+  --color-nocta-200: oklch(.922 0 0);   /* your selected theme */
   /* ... up to 950 */
 }
 ```
@@ -130,6 +147,50 @@ module.exports = {
     Primary Action
   </Button>
 </div>
+```
+
+### Theme Selection
+Choose from 4 carefully crafted color themes during initialization:
+
+| Theme | Description | Color Palette |
+|-------|-------------|---------------|
+| **Charcoal** | Neutral gray theme (default) | `oklch(.985 0 0)` to `oklch(.145 0 0)` |
+| **Jade** | Subtle green theme | `oklch(.985 .002 185)` to `oklch(.145 .006 155)` |
+| **Copper** | Warm copper theme | `oklch(.985 .003 84)` to `oklch(.145 .008 45)` |
+| **Cobalt** | Cool blue theme | `oklch(.985 .003 315)` to `oklch(.145 .007 285)` |
+
+**Interactive theme selection:**
+- Choose your theme during `npx nocta-ui init`
+- Theme is saved to `nocta.config.json`
+- Same class names work across all themes: `bg-nocta-500`, `text-nocta-900`, etc.
+- Automatically configured for both Tailwind v3 and v4
+
+**Theme examples:**
+```tsx
+// All themes use the same class names
+<div className="bg-nocta-100 border-nocta-300">
+  <h1 className="text-nocta-900">Welcome</h1>
+  <Button className="bg-nocta-600 hover:bg-nocta-700 text-white">
+    Click me
+  </Button>
+</div>
+```
+
+**Configuration:**
+```json
+{
+  "style": "default",
+  "tsx": true,
+  "theme": "jade",
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "src/App.css"
+  },
+  "aliases": {
+    "components": "src/components",
+    "utils": "src/lib/utils"
+  }
+}
 ```
 
 ### Tailwind CSS Validation
@@ -210,6 +271,7 @@ Components installed:
 ## Features
 
  **Modern Design** - Clean, professional components with beautiful color palette  
+ **4 Color Themes** - Choose from Charcoal, Jade, Copper, or Cobalt themes  
  **Accessible** - ARIA compliant, keyboard navigation  
  **Dark Mode** - Built-in dark mode support  
  **Responsive** - Mobile-first design  
@@ -243,6 +305,8 @@ export default function Example() {
   )
 }
 ```
+
+> **Note:** The example above works with all themes! Whether you choose Charcoal, Jade, Copper, or Cobalt, the class names remain the same - only the actual colors change based on your selected theme.
 
 ## Documentation
 
