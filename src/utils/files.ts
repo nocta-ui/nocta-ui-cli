@@ -1,6 +1,51 @@
 import fs from 'fs-extra';
-import path from 'path';
+import path, { join } from 'path';
 import { Config, Theme, AVAILABLE_THEMES } from '../types';
+import { readFileSync, existsSync } from 'fs';
+
+export async function getInstalledDependencies(): Promise<Record<string, string>> {
+  try {
+    const packageJsonPath = join(process.cwd(), 'package.json');
+    
+    if (!existsSync(packageJsonPath)) {
+      return {};
+    }
+    
+    const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
+    
+    // Get dependencies from package.json
+    const allDeps = {
+      ...packageJson.dependencies,
+      ...packageJson.devDependencies
+    };
+    
+    // Try to get actual installed versions from node_modules
+    const actualVersions: Record<string, string> = {};
+    
+    for (const depName of Object.keys(allDeps)) {
+      try {
+        // Try to get the actual installed version
+        const nodeModulesPath = join(process.cwd(), 'node_modules', depName, 'package.json');
+        
+        if (existsSync(nodeModulesPath)) {
+          const depPackageJson = JSON.parse(readFileSync(nodeModulesPath, 'utf8'));
+          actualVersions[depName] = depPackageJson.version;
+        } else {
+          // Fallback to version from package.json
+          actualVersions[depName] = allDeps[depName];
+        }
+      } catch (error) {
+        // If we can't read the specific package, use version from package.json
+        actualVersions[depName] = allDeps[depName];
+      }
+    }
+    
+    return actualVersions;
+    
+  } catch (error) {
+    return {};
+  }
+}
 
 export async function readConfig(): Promise<Config | null> {
   const configPath = path.join(process.cwd(), 'nocta.config.json');

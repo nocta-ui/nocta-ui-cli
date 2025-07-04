@@ -1,8 +1,42 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getInstalledDependencies = getInstalledDependencies;
 exports.readConfig = readConfig;
 exports.writeConfig = writeConfig;
 exports.fileExists = fileExists;
@@ -21,8 +55,47 @@ exports.generateDesignTokensCss = generateDesignTokensCss;
 exports.generateTailwindV3Colors = generateTailwindV3Colors;
 exports.generateTailwindV3ColorsString = generateTailwindV3ColorsString;
 const fs_extra_1 = __importDefault(require("fs-extra"));
-const path_1 = __importDefault(require("path"));
+const path_1 = __importStar(require("path"));
 const types_1 = require("../types");
+const fs_1 = require("fs");
+async function getInstalledDependencies() {
+    try {
+        const packageJsonPath = (0, path_1.join)(process.cwd(), 'package.json');
+        if (!(0, fs_1.existsSync)(packageJsonPath)) {
+            return {};
+        }
+        const packageJson = JSON.parse((0, fs_1.readFileSync)(packageJsonPath, 'utf8'));
+        // Get dependencies from package.json
+        const allDeps = {
+            ...packageJson.dependencies,
+            ...packageJson.devDependencies
+        };
+        // Try to get actual installed versions from node_modules
+        const actualVersions = {};
+        for (const depName of Object.keys(allDeps)) {
+            try {
+                // Try to get the actual installed version
+                const nodeModulesPath = (0, path_1.join)(process.cwd(), 'node_modules', depName, 'package.json');
+                if ((0, fs_1.existsSync)(nodeModulesPath)) {
+                    const depPackageJson = JSON.parse((0, fs_1.readFileSync)(nodeModulesPath, 'utf8'));
+                    actualVersions[depName] = depPackageJson.version;
+                }
+                else {
+                    // Fallback to version from package.json
+                    actualVersions[depName] = allDeps[depName];
+                }
+            }
+            catch (error) {
+                // If we can't read the specific package, use version from package.json
+                actualVersions[depName] = allDeps[depName];
+            }
+        }
+        return actualVersions;
+    }
+    catch (error) {
+        return {};
+    }
+}
 async function readConfig() {
     const configPath = path_1.default.join(process.cwd(), 'nocta.config.json');
     if (!(await fs_extra_1.default.pathExists(configPath))) {

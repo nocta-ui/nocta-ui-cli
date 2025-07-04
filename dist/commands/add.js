@@ -9,6 +9,7 @@ const ora_1 = __importDefault(require("ora"));
 const inquirer_1 = __importDefault(require("inquirer"));
 const registry_1 = require("../utils/registry");
 const files_1 = require("../utils/files");
+const semver_1 = __importDefault(require("semver"));
 async function add(componentName) {
     const spinner = (0, ora_1.default)(`Adding ${componentName}...`).start();
     try {
@@ -91,8 +92,95 @@ async function add(componentName) {
         }
         const deps = Object.keys(allDeps);
         if (deps.length > 0) {
-            spinner.text = `Installing dependencies...`;
-            await (0, files_1.installDependencies)(allDeps);
+            spinner.text = `Checking dependencies...`;
+            try {
+                // Get currently installed dependencies
+                const installedDeps = await (0, files_1.getInstalledDependencies)();
+                // Filter out dependencies that are already installed and satisfy requirements
+                const depsToInstall = {};
+                const skippedDeps = [];
+                const incompatibleDeps = [];
+                for (const [depName, requiredVersion] of Object.entries(allDeps)) {
+                    const installedVersion = installedDeps[depName];
+                    if (installedVersion) {
+                        try {
+                            // Clean version strings - remove 'v' prefix if present
+                            const cleanInstalledVersion = installedVersion.replace(/^v/, '');
+                            const cleanRequiredVersion = requiredVersion.replace(/^[v^~]/, ''); // Remove ^, ~, v prefixes
+                            // Special handling for React - newer major versions are usually compatible
+                            if (depName === 'react' || depName === 'react-dom') {
+                                const installedMajor = semver_1.default.major(cleanInstalledVersion);
+                                const requiredMajor = semver_1.default.major(cleanRequiredVersion);
+                                // If installed version is newer major version, assume compatibility
+                                if (installedMajor >= requiredMajor) {
+                                    skippedDeps.push(`${depName}@${installedVersion} (newer version compatible with ${requiredVersion})`);
+                                    continue;
+                                }
+                            }
+                            // Check if installed version satisfies the requirement
+                            const satisfies = semver_1.default.satisfies(cleanInstalledVersion, requiredVersion);
+                            if (satisfies) {
+                                skippedDeps.push(`${depName}@${installedVersion} (satisfies ${requiredVersion})`);
+                            }
+                            else {
+                                // For other packages, check if it's a newer major version
+                                const installedMajor = semver_1.default.major(cleanInstalledVersion);
+                                const requiredMajor = semver_1.default.major(cleanRequiredVersion);
+                                if (installedMajor > requiredMajor) {
+                                    skippedDeps.push(`${depName}@${installedVersion} (newer major version, assuming compatibility)`);
+                                }
+                                else {
+                                    incompatibleDeps.push(`${depName}: installed ${installedVersion}, required ${requiredVersion}`);
+                                    depsToInstall[depName] = requiredVersion;
+                                }
+                            }
+                        }
+                        catch (semverError) {
+                            const errorMessage = semverError instanceof Error ? semverError.message : 'Unknown error';
+                            console.log(chalk_1.default.yellow(`[WARN] Could not compare versions for ${depName}: ${errorMessage}`));
+                            depsToInstall[depName] = requiredVersion;
+                        }
+                    }
+                    else {
+                        depsToInstall[depName] = requiredVersion;
+                    }
+                }
+                // Install only missing or incompatible dependencies
+                if (Object.keys(depsToInstall).length > 0) {
+                    spinner.text = `Installing missing dependencies...`;
+                    await (0, files_1.installDependencies)(depsToInstall);
+                }
+                // Show information about dependency handling
+                if (skippedDeps.length > 0) {
+                    console.log(chalk_1.default.green('\nDependencies already satisfied:'));
+                    skippedDeps.forEach(dep => {
+                        console.log(chalk_1.default.gray(`   ${dep}`));
+                    });
+                }
+                if (incompatibleDeps.length > 0) {
+                    console.log(chalk_1.default.yellow('\nIncompatible dependencies updated:'));
+                    incompatibleDeps.forEach(dep => {
+                        console.log(chalk_1.default.gray(`   ${dep}`));
+                    });
+                }
+                if (Object.keys(depsToInstall).length > 0) {
+                    console.log(chalk_1.default.blue('\nDependencies installed:'));
+                    Object.entries(depsToInstall).forEach(([dep, version]) => {
+                        console.log(chalk_1.default.gray(`   ${dep}@${version}`));
+                    });
+                }
+            }
+            catch (error) {
+                const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                console.log(chalk_1.default.yellow(`[WARN] Could not check existing dependencies: ${errorMessage}`));
+                console.log(chalk_1.default.yellow('Installing all dependencies...'));
+                spinner.text = `Installing dependencies...`;
+                await (0, files_1.installDependencies)(allDeps);
+                console.log(chalk_1.default.blue('\nDependencies installed:'));
+                Object.entries(allDeps).forEach(([dep, version]) => {
+                    console.log(chalk_1.default.gray(`   ${dep}@${version}`));
+                });
+            }
         }
         spinner.succeed(`${mainComponent.name} added successfully!`);
         console.log(chalk_1.default.green('\nComponents installed:'));
@@ -100,12 +188,6 @@ async function add(componentName) {
             const targetPath = (0, files_1.resolveComponentPath)(file.path, config);
             console.log(chalk_1.default.gray(`   ${targetPath} (${file.componentName})`));
         });
-        if (deps.length > 0) {
-            console.log(chalk_1.default.blue('\nDependencies installed:'));
-            deps.forEach(dep => {
-                console.log(chalk_1.default.gray(`   ${dep}@${allDeps[dep]}`));
-            });
-        }
         console.log(chalk_1.default.blue('\nImport and use:'));
         const firstFile = mainComponent.files[0];
         const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
