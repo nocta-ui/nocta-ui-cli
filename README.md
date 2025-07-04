@@ -90,6 +90,16 @@ Design tokens added:
    • Use: text-nocta-500, bg-nocta-100, etc.
 ```
 
+#### Init Command Flow
+
+The following flowchart shows the complete initialization process:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="flowchart-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="flowchart.svg">
+  <img alt="Nocta UI Init Command Flow" src="flowchart.svg">
+</picture>
+
 ### `list`
 Show all available components grouped by category:
 ```bash
