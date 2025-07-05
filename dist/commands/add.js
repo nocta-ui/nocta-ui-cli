@@ -10,6 +10,14 @@ const inquirer_1 = __importDefault(require("inquirer"));
 const registry_1 = require("../utils/registry");
 const files_1 = require("../utils/files");
 const semver_1 = __importDefault(require("semver"));
+function processComponentContent(content, framework) {
+    // For React Router 7, replace @ alias with ~ alias
+    if (framework === 'react-router') {
+        return content.replace(/from\s+(['"])@\//g, "from $1~/");
+    }
+    // For other frameworks (Next.js, Vite), keep @ alias
+    return content;
+}
 async function add(componentName) {
     const spinner = (0, ora_1.default)(`Adding ${componentName}...`).start();
     try {
@@ -20,6 +28,9 @@ async function add(componentName) {
             console.log(chalk_1.default.yellow('Run "npx nocta-ui init" first'));
             return;
         }
+        // Detect framework to determine the correct import alias
+        spinner.text = 'Detecting framework...';
+        const frameworkDetection = await (0, files_1.detectFramework)();
         spinner.text = `Fetching ${componentName} component...`;
         const allComponents = await (0, registry_1.getComponentWithDependencies)(componentName);
         const mainComponent = allComponents[allComponents.length - 1]; // Main component is last
@@ -40,9 +51,11 @@ async function add(componentName) {
         for (const component of allComponents) {
             const files = await Promise.all(component.files.map(async (file) => {
                 const content = await (0, registry_1.getComponentFile)(file.path);
+                // Process content to use correct import alias based on framework
+                const processedContent = processComponentContent(content, frameworkDetection.framework);
                 return {
                     ...file,
-                    content,
+                    content: processedContent,
                     componentName: component.name
                 };
             }));
@@ -191,7 +204,9 @@ async function add(componentName) {
         console.log(chalk_1.default.blue('\nImport and use:'));
         const firstFile = mainComponent.files[0];
         const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
-        const importPath = `@/${config.aliases.components}/${componentPath}`;
+        // Use correct alias based on framework
+        const aliasPrefix = frameworkDetection.framework === 'react-router' ? '~' : '@';
+        const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
         console.log(chalk_1.default.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
         if (mainComponent.variants && mainComponent.variants.length > 0) {
             console.log(chalk_1.default.blue('\nAvailable variants:'));

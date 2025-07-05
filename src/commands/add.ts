@@ -2,9 +2,19 @@ import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
 import { getComponent, getComponentFile, getComponentWithDependencies } from '../utils/registry';
-import { readConfig, writeComponentFile, resolveComponentPath, installDependencies, fileExists, getInstalledDependencies } from '../utils/files';
+import { readConfig, writeComponentFile, resolveComponentPath, installDependencies, fileExists, getInstalledDependencies, detectFramework } from '../utils/files';
 import { ComponentFileWithContent } from '../types';
 import semver from 'semver';
+
+function processComponentContent(content: string, framework: string): string {
+  // For React Router 7, replace @ alias with ~ alias
+  if (framework === 'react-router') {
+    return content.replace(/from\s+(['"])@\//g, "from $1~/");
+  }
+  
+  // For other frameworks (Next.js, Vite), keep @ alias
+  return content;
+}
 
 export async function add(componentName: string): Promise<void> {
   const spinner = ora(`Adding ${componentName}...`).start();
@@ -18,6 +28,10 @@ export async function add(componentName: string): Promise<void> {
       return;
     }
 
+    // Detect framework to determine the correct import alias
+    spinner.text = 'Detecting framework...';
+    const frameworkDetection = await detectFramework();
+    
     spinner.text = `Fetching ${componentName} component...`;
     const allComponents = await getComponentWithDependencies(componentName);
     const mainComponent = allComponents[allComponents.length - 1]; // Main component is last
@@ -41,9 +55,11 @@ export async function add(componentName: string): Promise<void> {
       const files = await Promise.all(
         component.files.map(async (file) => {
           const content = await getComponentFile(file.path);
+          // Process content to use correct import alias based on framework
+          const processedContent = processComponentContent(content, frameworkDetection.framework);
           return {
             ...file,
-            content,
+            content: processedContent,
             componentName: component.name
           };
         })
@@ -214,7 +230,9 @@ export async function add(componentName: string): Promise<void> {
     console.log(chalk.blue('\nImport and use:'));
     const firstFile = mainComponent.files[0];
     const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
-    const importPath = `@/${config.aliases.components}/${componentPath}`;
+    // Use correct alias based on framework
+    const aliasPrefix = frameworkDetection.framework === 'react-router' ? '~' : '@';
+    const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
     console.log(chalk.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
 
     if (mainComponent.variants && mainComponent.variants.length > 0) {

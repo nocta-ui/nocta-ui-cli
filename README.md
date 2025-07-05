@@ -41,12 +41,13 @@ npx nocta-ui init
 ```
 - **Validates Tailwind CSS installation** - Ensures Tailwind is properly installed
 - Creates `nocta.config.json` configuration file
-- Auto-detects your framework (Next.js, Vite)
+- **Auto-detects your framework** (Next.js, Vite, React Router 7)
 - Supports Tailwind CSS v3 and v4
 - **Interactive theme selection** - Choose from 4 color themes
 - **Installs required dependencies:** `clsx`, `tailwind-merge` and `class-variance-authority`
 - **Creates utility functions:** `@/lib/utils.ts` with `cn()` helper for className merging
 - **Adds Nocta design tokens** - Beautiful color palette (nocta-50 to nocta-950)
+- **Framework-specific configuration** - Automatically configures paths and aliases for your framework
 
 **What happens during init:**
 ```bash
@@ -55,7 +56,7 @@ npx nocta-ui init
 ⠦ Checking Tailwind CSS installation...
 ✔ Found Tailwind CSS ^3.4.0 ✓
 ⠦ Detecting project framework...
-✔ Found Next.js 15.0.3 (App Router) ✓
+✔ Found React Router 7.0.0 (Framework Mode) ✓
 
 Select a color theme:
   1. Charcoal - Neutral gray theme (default)
@@ -70,7 +71,7 @@ Select a color theme:
 ✔ nocta-ui initialized successfully!
 
 Configuration created:
-   nocta.config.json (Next.js 15.0.3 App Router)
+   nocta.config.json (React Router 7.0.0 Framework Mode)
 
 Theme selected:
    Jade (jade)
@@ -78,13 +79,14 @@ Theme selected:
 Dependencies installed:
    clsx@^2.1.1
    tailwind-merge@^3.3.1
+   class-variance-authority@^0.7.1
 
 Utility functions created:
-   src/lib/utils.ts
+   app/lib/utils.ts
    • cn() function for className merging
 
 Design tokens added:
-   tailwind.config.js
+   app/app.css
    • Nocta color palette (nocta-50 to nocta-950)
    • Theme: Jade
    • Use: text-nocta-500, bg-nocta-100, etc.
@@ -113,11 +115,42 @@ npx nocta-ui add button
 npx nocta-ui add card
 npx nocta-ui add dialog
 ```
-- Downloads component files to your project
-- Installs required dependencies automatically
-- Shows usage examples and available variants 
+- **Downloads component files** to your project
+- **Installs required dependencies** automatically
+- **Framework-aware import aliases** - Automatically uses correct import paths:
+  - **Next.js/Vite**: `import { cn } from '@/lib/utils'`
+  - **React Router 7**: `import { cn } from '~/lib/utils'`
+- **Shows usage examples** and available variants with correct import paths 
 
 ## Advanced Features
+
+### Framework Detection & Automatic Aliases
+
+The CLI automatically detects your framework and configures the appropriate import aliases:
+
+| Framework | CSS File | Component Path | Utils Path | Import Alias |
+|-----------|----------|---------------|-----------|-------------|
+| **Next.js (App Router)** | `app/globals.css` | `components` | `lib/utils` | `@/lib/utils` |
+| **Next.js (Pages Router)** | `styles/globals.css` | `components` | `lib/utils` | `@/lib/utils` |
+| **Vite + React** | `src/App.css` | `src/components` | `src/lib/utils` | `@/lib/utils` |
+| **React Router 7** | `app/app.css` | `app/components` | `app/lib/utils` | `~/lib/utils` |
+
+**Smart alias replacement:**
+When adding components, the CLI automatically converts import paths to match your framework:
+
+```tsx
+// Registry component uses generic @/ alias
+import { cn } from '@/lib/utils'
+
+// Automatically converted based on your framework:
+// Next.js/Vite: import { cn } from '@/lib/utils'
+// React Router 7: import { cn } from '~/lib/utils'
+```
+
+**Framework detection logic:**
+- **Next.js** - Detects `next` dependency and config files
+- **Vite** - Detects `vite` dependency and React setup
+- **React Router 7** - Detects `react-router` and `@react-router/dev` dependencies
 
 ### Design Tokens Integration
 The CLI automatically adds the beautiful Nocta color palette to your project. Colors are automatically generated based on your selected theme:
@@ -186,7 +219,26 @@ Choose from 4 carefully crafted color themes during initialization:
 </div>
 ```
 
-**Configuration:**
+**Configuration Examples:**
+
+**Next.js (App Router):**
+```json
+{
+  "style": "default",
+  "tsx": true,
+  "theme": "jade",
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "app/globals.css"
+  },
+  "aliases": {
+    "components": "components",
+    "utils": "lib/utils"
+  }
+}
+```
+
+**Vite + React:**
 ```json
 {
   "style": "default",
@@ -199,6 +251,23 @@ Choose from 4 carefully crafted color themes during initialization:
   "aliases": {
     "components": "src/components",
     "utils": "src/lib/utils"
+  }
+}
+```
+
+**React Router 7:**
+```json
+{
+  "style": "default",
+  "tsx": true,
+  "theme": "jade",
+  "tailwind": {
+    "config": "tailwind.config.js",
+    "css": "app/app.css"
+  },
+  "aliases": {
+    "components": "app/components",
+    "utils": "app/lib/utils"
   }
 }
 ```
@@ -275,26 +344,55 @@ Components installed:
 
 ## Framework Support
 
-- Next.js (app router & pages router)
-- Vite + React
+- **Next.js** (App Router & Pages Router)
+- **Vite + React**
+- **React Router 7** (Framework Mode)
 
 ## Features
 
- **Modern Design** - Clean, professional components with beautiful color palette  
- **4 Color Themes** - Choose from Charcoal, Jade, Copper, or Cobalt themes  
- **Accessible** - ARIA compliant, keyboard navigation  
- **Dark Mode** - Built-in dark mode support  
- **Responsive** - Mobile-first design  
- **Customizable** - Multiple variants and sizes + custom design tokens  
- **Zero Config** - Auto-detects your setup and Tailwind version  
- **Fast** - Optimized performance  
- **Safe** - Validates requirements and protects existing files  
+- **Modern Design** - Clean, professional components with beautiful color palette  
+- **4 Color Themes** - Choose from Charcoal, Jade, Copper, or Cobalt themes  
+- **Accessible** - ARIA compliant, keyboard navigation  
+- **Dark Mode** - Built-in dark mode support  
+- **Responsive** - Mobile-first design  
+- **Customizable** - Multiple variants and sizes + custom design tokens  
+- **Zero Config** - Auto-detects your setup and Tailwind version  
+- **Fast** - Optimized performance  
+- **Safe** - Validates requirements and protects existing files  
 
-## Usage Example
+## Usage Examples
+
+### Next.js & Vite
 
 ```tsx
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+
+export default function Example() {
+  return (
+    <Card className="border-nocta-200">
+      <CardHeader className="bg-nocta-50">
+        <CardTitle className="text-nocta-900">Welcome to Nocta UI</CardTitle>
+      </CardHeader>
+      <CardContent className="bg-white">
+        <Button 
+          variant="primary" 
+          size="lg"
+          className="bg-nocta-500 hover:bg-nocta-600"
+        >
+          Get Started
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+### React Router 7
+
+```tsx
+import { Button } from "~/components/ui/button"
+import { Card, CardHeader, CardTitle, CardContent } from "~/components/ui/card"
 
 export default function Example() {
   return (

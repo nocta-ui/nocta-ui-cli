@@ -44,6 +44,7 @@ async function init() {
             console.log(chalk_1.default.yellow('nocta-ui supports:'));
             console.log(chalk_1.default.gray('   • Next.js (App Router or Pages Router)'));
             console.log(chalk_1.default.gray('   • Vite + React'));
+            console.log(chalk_1.default.gray('   • React Router 7 (Framework Mode)'));
             console.log(chalk_1.default.blue('\nDetection details:'));
             console.log(chalk_1.default.gray(`   React dependency: ${frameworkDetection.details.hasReactDependency ? '✓' : '✗'}`));
             console.log(chalk_1.default.gray(`   Framework config: ${frameworkDetection.details.hasConfig ? '✓' : '✗'}`));
@@ -59,6 +60,8 @@ async function init() {
                 console.log(chalk_1.default.gray('     npx create-next-app@latest'));
                 console.log(chalk_1.default.blue('   Vite + React:'));
                 console.log(chalk_1.default.gray('     npm create vite@latest . -- --template react-ts'));
+                console.log(chalk_1.default.blue('   React Router 7:'));
+                console.log(chalk_1.default.gray('     npx create-react-router@latest'));
             }
             return;
         }
@@ -70,6 +73,9 @@ async function init() {
         }
         else if (frameworkDetection.framework === 'vite-react') {
             frameworkInfo = `Vite ${frameworkDetection.version || ''} + React`;
+        }
+        else if (frameworkDetection.framework === 'react-router') {
+            frameworkInfo = `React Router ${frameworkDetection.version || ''} (Framework Mode)`;
         }
         spinner.text = `Found ${frameworkInfo} ✓`;
         // Determine Tailwind version from already checked installation
@@ -126,6 +132,21 @@ async function init() {
                 aliases: {
                     components: "src/components",
                     utils: "src/lib/utils"
+                }
+            };
+        }
+        else if (frameworkDetection.framework === 'react-router') {
+            config = {
+                style: "default",
+                tsx: true,
+                theme: selectedTheme,
+                tailwind: {
+                    config: isTailwindV4 ? "" : tailwindConfigPath,
+                    css: "app/app.css"
+                },
+                aliases: {
+                    components: "app/components",
+                    utils: "app/lib/utils"
                 }
             };
         }

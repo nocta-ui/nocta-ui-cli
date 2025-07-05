@@ -16,7 +16,7 @@ export declare function isTypeScriptProject(): Promise<boolean>;
 export declare function getTailwindConfigPath(): Promise<string>;
 export declare function rollbackInitChanges(): Promise<void>;
 export interface FrameworkDetection {
-    framework: 'nextjs' | 'vite-react' | 'unknown';
+    framework: 'nextjs' | 'vite-react' | 'react-router' | 'unknown';
     version?: string;
     details: {
         hasConfig: boolean;

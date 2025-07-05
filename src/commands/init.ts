@@ -47,6 +47,7 @@ export async function init(): Promise<void> {
       console.log(chalk.yellow('nocta-ui supports:'));
       console.log(chalk.gray('   • Next.js (App Router or Pages Router)'));
       console.log(chalk.gray('   • Vite + React'));
+      console.log(chalk.gray('   • React Router 7 (Framework Mode)'));
       console.log(chalk.blue('\nDetection details:'));
       console.log(chalk.gray(`   React dependency: ${frameworkDetection.details.hasReactDependency ? '✓' : '✗'}`));
       console.log(chalk.gray(`   Framework config: ${frameworkDetection.details.hasConfig ? '✓' : '✗'}`));
@@ -62,6 +63,8 @@ export async function init(): Promise<void> {
         console.log(chalk.gray('     npx create-next-app@latest'));
         console.log(chalk.blue('   Vite + React:'));
         console.log(chalk.gray('     npm create vite@latest . -- --template react-ts'));
+        console.log(chalk.blue('   React Router 7:'));
+        console.log(chalk.gray('     npx create-react-router@latest'));
       }
       return;
     }
@@ -73,6 +76,8 @@ export async function init(): Promise<void> {
       frameworkInfo = `Next.js ${frameworkDetection.version || ''} (${routerType === 'app-router' ? 'App Router' : routerType === 'pages-router' ? 'Pages Router' : 'Unknown Router'})`;
     } else if (frameworkDetection.framework === 'vite-react') {
       frameworkInfo = `Vite ${frameworkDetection.version || ''} + React`;
+    } else if (frameworkDetection.framework === 'react-router') {
+      frameworkInfo = `React Router ${frameworkDetection.version || ''} (Framework Mode)`;
     }
     
     spinner.text = `Found ${frameworkInfo} ✓`;
@@ -136,6 +141,20 @@ export async function init(): Promise<void> {
         aliases: {
           components: "src/components",
           utils: "src/lib/utils"
+        }
+      };
+    } else if (frameworkDetection.framework === 'react-router') {
+      config = {
+        style: "default",
+        tsx: true,
+        theme: selectedTheme,
+        tailwind: {
+          config: isTailwindV4 ? "" : tailwindConfigPath,
+          css: "app/app.css"
+        },
+        aliases: {
+          components: "app/components",
+          utils: "app/lib/utils"
         }
       };
     } else {

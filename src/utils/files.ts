@@ -439,7 +439,7 @@ export async function rollbackInitChanges(): Promise<void> {
 }
 
 export interface FrameworkDetection {
-  framework: 'nextjs' | 'vite-react' | 'unknown';
+  framework: 'nextjs' | 'vite-react' | 'react-router' | 'unknown';
   version?: string;
   details: {
     hasConfig: boolean;
@@ -506,6 +506,56 @@ export async function detectFramework(): Promise<FrameworkDetection> {
           configFiles: foundNextConfigs
         }
       };
+    }
+
+    // Check for React Router 7
+    const reactRouterConfigFiles = ['react-router.config.ts', 'react-router.config.js'];
+    const foundReactRouterConfigs = [];
+    for (const config of reactRouterConfigFiles) {
+      if (await fs.pathExists(config)) {
+        foundReactRouterConfigs.push(config);
+      }
+    }
+
+    const hasReactRouter = 'react-router' in dependencies;
+    const hasReactRouterDev = '@react-router/dev' in dependencies;
+    
+    if (hasReactRouter && hasReact) {
+      // Additional validation for React Router 7 in framework mode
+      let isReactRouterFramework = false;
+      
+      // Check for React Router 7 framework mode indicators
+      const reactRouterIndicators = [
+        'app/routes.ts',
+        'app/root.tsx',
+        'app/entry.client.tsx',
+        'app/entry.server.tsx'
+      ];
+      
+      for (const indicator of reactRouterIndicators) {
+        if (await fs.pathExists(indicator)) {
+          isReactRouterFramework = true;
+          break;
+        }
+      }
+      
+      // Also check for the dev dependency which is required for framework mode
+      if (hasReactRouterDev || foundReactRouterConfigs.length > 0) {
+        isReactRouterFramework = true;
+      }
+
+      if (isReactRouterFramework) {
+        return {
+          framework: 'react-router',
+          version: dependencies['react-router'],
+          details: {
+            hasConfig: foundReactRouterConfigs.length > 0,
+            hasReactDependency: hasReact,
+            hasFrameworkDependency: hasReactRouter,
+            configFiles: foundReactRouterConfigs
+          }
+        };
+      }
     }
 
     // Check for Vite + React
