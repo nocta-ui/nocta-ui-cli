@@ -44,7 +44,7 @@ npx nocta-ui init
 - Auto-detects your framework (Next.js, Vite)
 - Supports Tailwind CSS v3 and v4
 - **Interactive theme selection** - Choose from 4 color themes
-- **Installs required dependencies:** `clsx` and `tailwind-merge`
+- **Installs required dependencies:** `clsx`, `tailwind-merge` and `class-variance-authority`
 - **Creates utility functions:** `@/lib/utils.ts` with `cn()` helper for className merging
 - **Adds Nocta design tokens** - Beautiful color palette (nocta-50 to nocta-950)
 

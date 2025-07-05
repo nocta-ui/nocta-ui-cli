@@ -138,7 +138,8 @@ async function init() {
         spinner.text = 'Installing required dependencies...';
         const requiredDependencies = {
             'clsx': '^2.1.1',
-            'tailwind-merge': '^3.3.1'
+            'tailwind-merge': '^3.3.1',
+            'class-variance-authority': '^0.7.1'
         };
         try {
             await (0, files_1.installDependencies)(requiredDependencies);
@@ -214,6 +215,7 @@ export function cn(...inputs: ClassValue[]) {
         console.log(chalk_1.default.blue('\nDependencies installed:'));
         console.log(chalk_1.default.gray(`   clsx@${requiredDependencies.clsx}`));
         console.log(chalk_1.default.gray(`   tailwind-merge@${requiredDependencies['tailwind-merge']}`));
+        console.log(chalk_1.default.gray(`   class-variance-authority@${requiredDependencies['class-variance-authority']}`));
         if (utilsCreated) {
             console.log(chalk_1.default.green('\nUtility functions created:'));
             console.log(chalk_1.default.gray(`   ${utilsPath}`));
