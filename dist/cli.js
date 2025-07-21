@@ -30,11 +30,11 @@ program
 });
 program
     .command('add')
-    .description('Add a component to your project')
-    .argument('<component>', 'component name')
-    .action(async (componentName) => {
+    .description('Add components to your project')
+    .argument('<components...>', 'component names')
+    .action(async (componentNames) => {
     try {
-        await (0, add_1.add)(componentName);
+        await (0, add_1.add)(componentNames);
     }
     catch (error) {
         console.error(chalk_1.default.red('Error:', error));

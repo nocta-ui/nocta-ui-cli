@@ -16,8 +16,14 @@ function processComponentContent(content: string, framework: string): string {
   return content;
 }
 
-export async function add(componentName: string): Promise<void> {
-  const spinner = ora(`Adding ${componentName}...`).start();
+export async function add(componentNames: string[]): Promise<void> {
+  if (componentNames.length === 0) {
+    console.log(chalk.red('Please specify at least one component name'));
+    console.log(chalk.yellow('Usage: npx nocta-ui add <component1> [component2] [component3] ...'));
+    return;
+  }
+
+  const spinner = ora(`Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`).start();
 
   try {
     const config = await readConfig();
@@ -32,28 +38,63 @@ export async function add(componentName: string): Promise<void> {
     spinner.text = 'Detecting framework...';
     const frameworkDetection = await detectFramework();
     
-    spinner.text = `Fetching ${componentName} component...`;
-    const allComponents = await getComponentWithDependencies(componentName);
-    const mainComponent = allComponents[allComponents.length - 1]; // Main component is last
+    // Collect all components with their dependencies
+    spinner.text = 'Fetching components and dependencies...';
+    const allComponentsMap = new Map();
+    const processedComponents = new Set<string>();
     
-    // Show user what will be installed
-    if (allComponents.length > 1) {
-      const dependencyNames = allComponents.slice(0, -1).map(c => c.name);
-      spinner.stop();
-      console.log(chalk.blue(`Installing ${componentName} with internal dependencies:`));
-      dependencyNames.forEach(name => {
-        console.log(chalk.gray(`   • ${name}`));
-      });
-      console.log(chalk.gray(`   • ${mainComponent.name} (main component)`));
-      console.log('');
-      spinner.start(`Preparing components...`);
+    // Process each requested component
+    for (const componentName of componentNames) {
+      try {
+        const componentsWithDeps = await getComponentWithDependencies(componentName);
+        
+        // Add all components (including dependencies) to our map
+        for (const component of componentsWithDeps) {
+          if (!processedComponents.has(component.name)) {
+            allComponentsMap.set(component.name, component);
+            processedComponents.add(component.name);
+          }
+        }
+      } catch (error) {
+        spinner.fail(`Failed to fetch component: ${componentName}`);
+        if (error instanceof Error && error.message.includes('not found')) {
+          console.log(chalk.red(`Component "${componentName}" not found`));
+          console.log(chalk.yellow('Run "npx nocta-ui list" to see available components'));
+        }
+        throw error;
+      }
     }
+
+    const allComponents = Array.from(allComponentsMap.values());
+    const requestedComponents = componentNames.map(name => 
+      allComponents.find(c => c.name === name)
+    ).filter((component): component is NonNullable<typeof component> => component !== undefined);
+
+    // Show user what will be installed
+    spinner.stop();
+    console.log(chalk.blue(`Installing ${componentNames.length} component${componentNames.length > 1 ? 's' : ''}:`));
+    
+    requestedComponents.forEach(component => {
+      console.log(chalk.green(`   • ${component!.name} (requested)`));
+    });
+
+    // Show dependencies if any
+    const dependencies = allComponents.filter(c => !componentNames.includes(c.name));
+    if (dependencies.length > 0) {
+      console.log(chalk.blue('\nWith internal dependencies:'));
+      dependencies.forEach(component => {
+        console.log(chalk.gray(`   • ${component.name}`));
+      });
+    }
+
+    console.log('');
+    spinner.start(`Preparing components...`);
 
     // Collect all files from all components
     const allComponentFiles: ComponentFileWithContent[] = [];
     for (const component of allComponents) {
       const files = await Promise.all(
-        component.files.map(async (file) => {
+        component.files.map(async (file: any) => {
           const content = await getComponentFile(file.path);
           // Process content to use correct import alias based on framework
           const processedContent = processComponentContent(content, frameworkDetection.framework);
@@ -100,9 +141,9 @@ export async function add(componentName: string): Promise<void> {
         return;
       }
       
-      spinner.start(`Installing ${componentName} files...`);
+      spinner.start(`Installing component files...`);
     } else {
-      spinner.text = `Installing ${componentName} files...`;
+      spinner.text = `Installing component files...`;
     }
     
     for (const file of allComponentFiles) {
@@ -219,7 +260,8 @@ export async function add(componentName: string): Promise<void> {
       }
     }
 
-    spinner.succeed(`${mainComponent.name} added successfully!`);
+    const componentText = componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0];
+    spinner.succeed(`${componentText} added successfully!`);
 
     console.log(chalk.green('\nComponents installed:'));
     allComponentFiles.forEach((file) => {
@@ -228,33 +270,42 @@ export async function add(componentName: string): Promise<void> {
     });
 
     console.log(chalk.blue('\nImport and use:'));
-    const firstFile = mainComponent.files[0];
-    const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
-    // Use correct alias based on framework
+    // Show import examples for each requested component
     const aliasPrefix = frameworkDetection.framework === 'react-router' ? '~' : '@';
-    const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
-    console.log(chalk.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
-
-    if (mainComponent.variants && mainComponent.variants.length > 0) {
-      console.log(chalk.blue('\nAvailable variants:'));
-      console.log(chalk.gray(`   ${mainComponent.variants.join(', ')}`));
+    
+    for (const componentName of componentNames) {
+      const component = allComponents.find(c => c.name === componentName);
+      if (component) {
+        const firstFile = component.files[0];
+        const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
+        const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
+        console.log(chalk.gray(`   import { ${component.exports.join(', ')} } from "${importPath}"; // ${component.name}`));
+      }
     }
 
-    if (mainComponent.sizes && mainComponent.sizes.length > 0) {
+    // Show variants and sizes for components that have them
+    const componentsWithVariants = requestedComponents.filter(c => c!.variants && c!.variants.length > 0);
+    if (componentsWithVariants.length > 0) {
+      console.log(chalk.blue('\nAvailable variants:'));
+      componentsWithVariants.forEach(component => {
+        console.log(chalk.gray(`   ${component!.name}: ${component!.variants!.join(', ')}`));
+      });
+    }
+
+    const componentsWithSizes = requestedComponents.filter(c => c!.sizes && c!.sizes.length > 0);
+    if (componentsWithSizes.length > 0) {
       console.log(chalk.blue('\nAvailable sizes:'));
-      console.log(chalk.gray(`   ${mainComponent.sizes.join(', ')}`));
+      componentsWithSizes.forEach(component => {
+        console.log(chalk.gray(`   ${component!.name}: ${component!.sizes!.join(', ')}`));
+      });
     }
 
   } catch (error) {
-    spinner.fail(`Failed to add ${componentName}`);
+    const componentText = componentNames.length > 1 ? `components: ${componentNames.join(', ')}` : componentNames[0];
+    spinner.fail(`Failed to add ${componentText}`);
     
     if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        console.log(chalk.red(`Component "${componentName}" not found`));
-        console.log(chalk.yellow('Run "npx nocta-ui list" to see available components'));
-      } else {
-        console.log(chalk.red(`${error.message}`));
-      }
+      console.log(chalk.red(`${error.message}`));
     }
     
     throw error;

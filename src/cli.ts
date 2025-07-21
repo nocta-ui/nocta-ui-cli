@@ -29,11 +29,11 @@ program
 
 program
   .command('add')
-  .description('Add a component to your project')
-  .argument('<component>', 'component name')
-  .action(async (componentName: string) => {
+  .description('Add components to your project')
+  .argument('<components...>', 'component names')
+  .action(async (componentNames: string[]) => {
     try {
-      await add(componentName);
+      await add(componentNames);
     } catch (error) {
       console.error(chalk.red('Error:', error));
       process.exit(1);

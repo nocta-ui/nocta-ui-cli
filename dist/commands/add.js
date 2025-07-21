@@ -18,8 +18,13 @@ function processComponentContent(content, framework) {
     // For other frameworks (Next.js, Vite), keep @ alias
     return content;
 }
-async function add(componentName) {
-    const spinner = (0, ora_1.default)(`Adding ${componentName}...`).start();
+async function add(componentNames) {
+    if (componentNames.length === 0) {
+        console.log(chalk_1.default.red('Please specify at least one component name'));
+        console.log(chalk_1.default.yellow('Usage: npx nocta-ui add <component1> [component2] [component3] ...'));
+        return;
+    }
+    const spinner = (0, ora_1.default)(`Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`).start();
     try {
         const config = await (0, files_1.readConfig)();
         if (!config) {
@@ -31,21 +36,49 @@ async function add(componentName) {
         // Detect framework to determine the correct import alias
         spinner.text = 'Detecting framework...';
         const frameworkDetection = await (0, files_1.detectFramework)();
-        spinner.text = `Fetching ${componentName} component...`;
-        const allComponents = await (0, registry_1.getComponentWithDependencies)(componentName);
-        const mainComponent = allComponents[allComponents.length - 1]; // Main component is last
-        // Show user what will be installed
-        if (allComponents.length > 1) {
-            const dependencyNames = allComponents.slice(0, -1).map(c => c.name);
-            spinner.stop();
-            console.log(chalk_1.default.blue(`Installing ${componentName} with internal dependencies:`));
-            dependencyNames.forEach(name => {
-                console.log(chalk_1.default.gray(`   • ${name}`));
-            });
-            console.log(chalk_1.default.gray(`   • ${mainComponent.name} (main component)`));
-            console.log('');
-            spinner.start(`Preparing components...`);
+        // Collect all components with their dependencies
+        spinner.text = 'Fetching components and dependencies...';
+        const allComponentsMap = new Map();
+        const processedComponents = new Set();
+        // Process each requested component
+        for (const componentName of componentNames) {
+            try {
+                const componentsWithDeps = await (0, registry_1.getComponentWithDependencies)(componentName);
+                // Add all components (including dependencies) to our map
+                for (const component of componentsWithDeps) {
+                    if (!processedComponents.has(component.name)) {
+                        allComponentsMap.set(component.name, component);
+                        processedComponents.add(component.name);
+                    }
+                }
+            }
+            catch (error) {
+                spinner.fail(`Failed to fetch component: ${componentName}`);
+                if (error instanceof Error && error.message.includes('not found')) {
+                    console.log(chalk_1.default.red(`Component "${componentName}" not found`));
+                    console.log(chalk_1.default.yellow('Run "npx nocta-ui list" to see available components'));
+                }
+                throw error;
+            }
         }
+        const allComponents = Array.from(allComponentsMap.values());
+        const requestedComponents = componentNames.map(name => allComponents.find(c => c.name === name)).filter((component) => component !== undefined);
+        // Show user what will be installed
+        spinner.stop();
+        console.log(chalk_1.default.blue(`Installing ${componentNames.length} component${componentNames.length > 1 ? 's' : ''}:`));
+        requestedComponents.forEach(component => {
+            console.log(chalk_1.default.green(`   • ${component.name} (requested)`));
+        });
+        // Show dependencies if any
+        const dependencies = allComponents.filter(c => !componentNames.includes(c.name));
+        if (dependencies.length > 0) {
+            console.log(chalk_1.default.blue('\nWith internal dependencies:'));
+            dependencies.forEach(component => {
+                console.log(chalk_1.default.gray(`   • ${component.name}`));
+            });
+        }
+        console.log('');
+        spinner.start(`Preparing components...`);
         // Collect all files from all components
         const allComponentFiles = [];
         for (const component of allComponents) {
@@ -89,10 +122,10 @@ async function add(componentName) {
                 console.log(chalk_1.default.red('Installation cancelled'));
                 return;
             }
-            spinner.start(`Installing ${componentName} files...`);
+            spinner.start(`Installing component files...`);
         }
         else {
-            spinner.text = `Installing ${componentName} files...`;
+            spinner.text = `Installing component files...`;
         }
         for (const file of allComponentFiles) {
             const targetPath = (0, files_1.resolveComponentPath)(file.path, config);
@@ -195,38 +228,46 @@ async function add(componentName) {
                 });
             }
         }
-        spinner.succeed(`${mainComponent.name} added successfully!`);
+        const componentText = componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0];
+        spinner.succeed(`${componentText} added successfully!`);
         console.log(chalk_1.default.green('\nComponents installed:'));
         allComponentFiles.forEach((file) => {
             const targetPath = (0, files_1.resolveComponentPath)(file.path, config);
             console.log(chalk_1.default.gray(`   ${targetPath} (${file.componentName})`));
         });
         console.log(chalk_1.default.blue('\nImport and use:'));
-        const firstFile = mainComponent.files[0];
-        const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
-        // Use correct alias based on framework
+        // Show import examples for each requested component
         const aliasPrefix = frameworkDetection.framework === 'react-router' ? '~' : '@';
-        const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
-        console.log(chalk_1.default.gray(`   import { ${mainComponent.exports.join(', ')} } from "${importPath}"`));
-        if (mainComponent.variants && mainComponent.variants.length > 0) {
-            console.log(chalk_1.default.blue('\nAvailable variants:'));
-            console.log(chalk_1.default.gray(`   ${mainComponent.variants.join(', ')}`));
+        for (const componentName of componentNames) {
+            const component = allComponents.find(c => c.name === componentName);
+            if (component) {
+                const firstFile = component.files[0];
+                const componentPath = firstFile.path.replace('components/', '').replace('.tsx', '');
+                const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
+                console.log(chalk_1.default.gray(`   import { ${component.exports.join(', ')} } from "${importPath}"; // ${component.name}`));
+            }
         }
-        if (mainComponent.sizes && mainComponent.sizes.length > 0) {
+        // Show variants and sizes for components that have them
+        const componentsWithVariants = requestedComponents.filter(c => c.variants && c.variants.length > 0);
+        if (componentsWithVariants.length > 0) {
+            console.log(chalk_1.default.blue('\nAvailable variants:'));
+            componentsWithVariants.forEach(component => {
+                console.log(chalk_1.default.gray(`   ${component.name}: ${component.variants.join(', ')}`));
+            });
+        }
+        const componentsWithSizes = requestedComponents.filter(c => c.sizes && c.sizes.length > 0);
+        if (componentsWithSizes.length > 0) {
             console.log(chalk_1.default.blue('\nAvailable sizes:'));
-            console.log(chalk_1.default.gray(`   ${mainComponent.sizes.join(', ')}`));
+            componentsWithSizes.forEach(component => {
+                console.log(chalk_1.default.gray(`   ${component.name}: ${component.sizes.join(', ')}`));
+            });
         }
     }
     catch (error) {
-        spinner.fail(`Failed to add ${componentName}`);
+        const componentText = componentNames.length > 1 ? `components: ${componentNames.join(', ')}` : componentNames[0];
+        spinner.fail(`Failed to add ${componentText}`);
         if (error instanceof Error) {
-            if (error.message.includes('not found')) {
-                console.log(chalk_1.default.red(`Component "${componentName}" not found`));
-                console.log(chalk_1.default.yellow('Run "npx nocta-ui list" to see available components'));
-            }
-            else {
-                console.log(chalk_1.default.red(`${error.message}`));
-            }
+            console.log(chalk_1.default.red(`${error.message}`));
         }
         throw error;
     }
