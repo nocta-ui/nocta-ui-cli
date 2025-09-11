@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path, { join } from 'path';
-import { Config, Theme, AVAILABLE_THEMES } from '../types';
+import { Config } from '../types';
 import { readFileSync, existsSync } from 'fs';
 
 export async function getInstalledDependencies(): Promise<Record<string, string>> {
@@ -108,57 +108,106 @@ export async function installDependencies(dependencies: Record<string, string>):
   execSync(installCmd, { stdio: 'inherit' });
 }
 
-export async function addDesignTokensToCss(cssFilePath: string, themeName: string = 'charcoal'): Promise<boolean> {
+export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean> {
+  // Tailwind v4: inject semantic color variables and @theme mapping (see new-config.md)
   const fullPath = path.join(process.cwd(), cssFilePath);
+
+  const V4_SNIPPET = `@import "tailwindcss";
+
+:root {
+	--color-background: oklch(0.97 0 0);
+	--color-background-muted: oklch(0.922 0 0);
+	--color-background-elevated: oklch(0.87 0 0);
+	--color-foreground: oklch(0.205 0 0);
+	--color-foreground-muted: oklch(0.371 0 0);
+	--color-foreground-subtle: oklch(0.708 0 0);
+	--color-border: oklch(0.205 0 0);
+	--color-border-muted: oklch(0.922 0 0);
+	--color-border-subtle: oklch(0.708 0 0);
+	--color-ring: oklch(0.205 0 0);
+	--color-ring-offset: oklch(0.97 0 0);
+	--color-primary: oklch(0.205 0 0);
+	--color-primary-foreground: oklch(0.97 0 0);
+	--color-primary-muted: oklch(0.371 0 0);
+	--color-overlay: oklch(0.145 0 0);
+	--color-gradient-primary-start: oklch(0.205 0 0);
+	--color-gradient-primary-end: oklch(0.371 0 0);
+}
+
+.dark {
+	--color-background: oklch(0.205 0 0);
+	--color-background-muted: oklch(0.269 0 0);
+	--color-background-elevated: oklch(0.371 0 0);
+	--color-foreground: oklch(0.97 0 0);
+	--color-foreground-muted: oklch(0.87 0 0);
+	--color-foreground-subtle: oklch(0.556 0 0);
+	--color-border: oklch(0.97 0 0);
+	--color-border-muted: oklch(0.269 0 0);
+	--color-border-subtle: oklch(0.371 0 0);
+	--color-ring: oklch(0.97 0 0);
+	--color-ring-offset: oklch(0.205 0 0);
+	--color-primary: oklch(0.97 0 0);
+	--color-primary-foreground: oklch(0.205 0 0);
+	--color-primary-muted: oklch(0.87 0 0);
+	--color-overlay: oklch(0.145 0 0);
+	--color-gradient-primary-start: oklch(0.371 0 0);
+	--color-gradient-primary-end: oklch(0.371 0 0);
+}
   
+@theme {
+	--color-background: var(--background);
+	--color-background-muted: var(--background-muted);
+	--color-background-elevated: var(--background-elevated);
+	--color-foreground: var(--foreground);
+	--color-foreground-muted: var(--foreground-muted);
+	--color-foreground-subtle: var(--foreground-subtle);
+	--color-primary: var(--primary);
+	--color-primary-muted: var(--primary-muted);
+	--color-border: var(--border);
+	--color-border-muted: var(--border-muted);
+	--color-border-subtle: var(--border-subtle);
+	--color-ring: var(--ring);
+	--color-ring-offset: var(--ring-offset);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-gradient-primary-start: var(--gradient-primary-start);
+	--color-gradient-primary-end: var(--gradient-primary-end);
+	--color-overlay: var(--overlay);
+}`;
+
   try {
-    const theme = getThemeByName(themeName);
-    const designTokens = generateDesignTokensCss(theme);
-    
     let cssContent = '';
     if (await fs.pathExists(fullPath)) {
       cssContent = await fs.readFile(fullPath, 'utf8');
-      
-      // Check if tokens already exist
-      if (cssContent.includes('@theme') && cssContent.includes('--color-nocta-')) {
-        return false; // Tokens already exist
+      // Consider tokens already present only if a rich subset exists
+      const hasRichTheme = cssContent.includes('--color-primary-muted') && cssContent.includes('--color-gradient-primary-start');
+      if (cssContent.includes('@theme') && hasRichTheme) {
+        return false;
       }
     }
-    
-    // Split content into lines
+
     const lines = cssContent.split('\n');
     let lastImportIndex = -1;
-    
-    // Find the last @import statement
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
-      if (line.startsWith('@import')) {
-        lastImportIndex = i;
-      } else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//')) {
-        // Stop looking after we hit non-import, non-comment content
-        break;
-      }
+      if (line.startsWith('@import')) lastImportIndex = i;
+      else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//')) break;
     }
-    
-    let newContent;
+
+    // Avoid duplicating @import if it's already present
+    const hasImport = /@import\s+["']tailwindcss["'];?/i.test(cssContent);
+    const snippet = hasImport
+      ? V4_SNIPPET.replace(/@import\s+["']tailwindcss["'];?\s*/i, '').trimStart()
+      : V4_SNIPPET;
+
+    let newContent: string;
     if (lastImportIndex >= 0) {
-      // Insert tokens after the last import
       const beforeImports = lines.slice(0, lastImportIndex + 1);
       const afterImports = lines.slice(lastImportIndex + 1);
-      
-      // Add some spacing and the tokens
-      const tokensWithSpacing = ['', designTokens, ''];
-      
-      newContent = [
-        ...beforeImports,
-        ...tokensWithSpacing,
-        ...afterImports
-      ].join('\n');
+      newContent = [...beforeImports, '', snippet, '', ...afterImports].join('\n');
     } else {
-      // No imports found, add tokens at the beginning
-      newContent = `${designTokens}\n\n${cssContent}`;
+      newContent = `${snippet}\n\n${cssContent}`;
     }
-    
+
     await fs.ensureDir(path.dirname(fullPath));
     await fs.writeFile(fullPath, newContent, 'utf8');
     return true;
@@ -167,20 +216,18 @@ export async function addDesignTokensToCss(cssFilePath: string, themeName: strin
   }
 }
 
-export async function addDesignTokensToTailwindConfig(configFilePath: string, themeName: string = 'charcoal'): Promise<boolean> {
+export async function addDesignTokensToTailwindConfig(configFilePath: string): Promise<boolean> {
   const fullPath = path.join(process.cwd(), configFilePath);
   
   try {
-    const theme = getThemeByName(themeName);
-    
     let configContent = '';
     const isTypeScript = configFilePath.endsWith('.ts');
     
     if (await fs.pathExists(fullPath)) {
       configContent = await fs.readFile(fullPath, 'utf8');
       
-      // Check if nocta colors already exist
-      if (configContent.includes('nocta:') || configContent.includes('"nocta"')) {
+      // Check if semantic colors already exist
+      if (configContent.includes('colors:') && configContent.includes('background') && configContent.includes('primary')) {
         return false; // Tokens already exist
       }
     } else {
@@ -189,6 +236,7 @@ export async function addDesignTokensToTailwindConfig(configFilePath: string, th
         configContent = `import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: ["class"],
   content: [],
   theme: {
     extend: {},
@@ -198,6 +246,7 @@ export default {
       } else {
         configContent = `/** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: ["class"],
   content: [],
   theme: {
     extend: {},
@@ -207,8 +256,24 @@ module.exports = {
       }
     }
 
-    // Nocta colors object as a string
-    const noctaColorsObject = generateTailwindV3ColorsString(theme);
+    // Semantic colors mapping referencing CSS variables
+    const colorsMapping = `background: 'var(--color-background)',
+        'background-muted': 'var(--color-background-muted)',
+        'background-elevated': 'var(--color-background-elevated)',
+        foreground: 'var(--color-foreground)',
+        'foreground-muted': 'var(--color-foreground-muted)',
+        'foreground-subtle': 'var(--color-foreground-subtle)',
+        primary: 'var(--color-primary)',
+        'primary-muted': 'var(--color-primary-muted)',
+        'primary-foreground': 'var(--color-primary-foreground)',
+        border: 'var(--color-border)',
+        'border-muted': 'var(--color-border-muted)',
+        'border-subtle': 'var(--color-border-subtle)',
+        ring: 'var(--color-ring)',
+        'ring-offset': 'var(--color-ring-offset)',
+        overlay: 'var(--color-overlay)',
+        'gradient-primary-start': 'var(--color-gradient-primary-start)',
+        'gradient-primary-end': 'var(--color-gradient-primary-end)'`;
 
     let modifiedContent = configContent;
 
@@ -267,7 +332,7 @@ module.exports = {
     }
 
     if (foundColors && colorsEndIndex > -1) {
-      // Add nocta colors to existing colors section
+      // Add semantic colors to existing colors section
       const beforeColorsEnd = lines.slice(0, colorsEndIndex);
       const colorsEndLine = lines[colorsEndIndex];
       const afterColorsEnd = lines.slice(colorsEndIndex + 1);
@@ -297,8 +362,8 @@ module.exports = {
         }
       }
       
-      // Add nocta colors
-      const noctaLines = noctaColorsObject.split('\n').map(line => 
+      // Add semantic colors mapping
+      const noctaLines = colorsMapping.split('\n').map(line => 
         line ? indentForNocta + line : line
       );
       
@@ -330,7 +395,7 @@ module.exports = {
       
       const colorsLines = [
         `${extendIndent}  colors: {`,
-        ...noctaColorsObject.split('\n').map(line => 
+        ...colorsMapping.split('\n').map(line => 
           line ? `${extendIndent}    ${line}` : line
         ),
         `${extendIndent}  }${hasContent ? ',' : ''}`
@@ -348,7 +413,7 @@ module.exports = {
       const themeRegex = /(theme:\s*{)(\s*)(})/;
       if (themeRegex.test(modifiedContent)) {
         modifiedContent = modifiedContent.replace(themeRegex, (match, before, whitespace, after) => {
-          return `${before}\n    extend: {\n      colors: {\n        ${noctaColorsObject}\n      }\n    },\n  ${after}`;
+          return `${before}\n    extend: {\n      colors: {\n        ${colorsMapping}\n      }\n    },\n  ${after}`;
         });
       }
     }
@@ -659,32 +724,41 @@ export async function detectFramework(): Promise<FrameworkDetection> {
   }
 }
 
-export function getThemeByName(themeName: string): Theme {
-  const theme = AVAILABLE_THEMES.find(t => t.name === themeName);
-  if (!theme) {
-    throw new Error(`Theme "${themeName}" not found`);
+// Add base CSS variables (:root and .dark) to a CSS file (useful for Tailwind v3)
+export async function addBaseCssVariables(cssFilePath: string): Promise<boolean> {
+  const fullPath = path.join(process.cwd(), cssFilePath);
+  const BASE_VARS = `:root {\n\t--color-background: oklch(0.97 0 0);\n\t--color-background-muted: oklch(0.922 0 0);\n\t--color-background-elevated: oklch(0.87 0 0);\n\t--color-foreground: oklch(0.205 0 0);\n\t--color-foreground-muted: oklch(0.371 0 0);\n\t--color-foreground-subtle: oklch(0.708 0 0);\n\t--color-border: oklch(0.205 0 0);\n\t--color-border-muted: oklch(0.922 0 0);\n\t--color-border-subtle: oklch(0.708 0 0);\n\t--color-ring: oklch(0.205 0 0);\n\t--color-ring-offset: oklch(0.97 0 0);\n\t--color-primary: oklch(0.205 0 0);\n\t--color-primary-foreground: oklch(0.97 0 0);\n\t--color-primary-muted: oklch(0.371 0 0);\n\t--color-overlay: oklch(0.145 0 0);\n\t--color-gradient-primary-start: oklch(0.205 0 0);\n\t--color-gradient-primary-end: oklch(0.371 0 0);\n+}\n\n+.dark {\n\t--color-background: oklch(0.205 0 0);\n\t--color-background-muted: oklch(0.269 0 0);\n\t--color-background-elevated: oklch(0.371 0 0);\n\t--color-foreground: oklch(0.97 0 0);\n\t--color-foreground-muted: oklch(0.87 0 0);\n\t--color-foreground-subtle: oklch(0.556 0 0);\n\t--color-border: oklch(0.97 0 0);\n\t--color-border-muted: oklch(0.269 0 0);\n\t--color-border-subtle: oklch(0.371 0 0);\n\t--color-ring: oklch(0.97 0 0);\n\t--color-ring-offset: oklch(0.205 0 0);\n\t--color-primary: oklch(0.97 0 0);\n\t--color-primary-foreground: oklch(0.205 0 0);\n\t--color-primary-muted: oklch(0.87 0 0);\n\t--color-overlay: oklch(0.145 0 0);\n\t--color-gradient-primary-start: oklch(0.371 0 0);\n\t--color-gradient-primary-end: oklch(0.371 0 0);\n+}`;
+
+  try {
+    let cssContent = '';
+    if (await fs.pathExists(fullPath)) {
+      cssContent = await fs.readFile(fullPath, 'utf8');
+      if (cssContent.includes('--color-background') && cssContent.includes('--color-primary')) {
+        return false;
+      }
+    }
+
+    const lines = cssContent.split('\n');
+    let lastImportIndex = -1;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('@import')) lastImportIndex = i;
+      else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//')) break;
+    }
+
+    let newContent: string;
+    if (lastImportIndex >= 0) {
+      const before = lines.slice(0, lastImportIndex + 1);
+      const after = lines.slice(lastImportIndex + 1);
+      newContent = [...before, '', BASE_VARS, '', ...after].join('\n');
+    } else {
+      newContent = `${BASE_VARS}\n\n${cssContent}`;
+    }
+
+    await fs.ensureDir(path.dirname(fullPath));
+    await fs.writeFile(fullPath, newContent, 'utf8');
+    return true;
+  } catch (error) {
+    throw new Error(`Failed to add base CSS variables: ${error}`);
   }
-  return theme;
-}
-
-export function generateDesignTokensCss(theme: Theme): string {
-  const tokens = Object.entries(theme.colors)
-    .map(([key, value]) => `  --color-nocta-${key}: ${value};`)
-    .join('\n');
-  
-  return `@theme {\n${tokens}\n}`;
-}
-
-export function generateTailwindV3Colors(theme: Theme): Record<string, Record<string, string>> {
-  return {
-    nocta: theme.colors
-  };
-}
-
-export function generateTailwindV3ColorsString(theme: Theme): string {
-  const colors = Object.entries(theme.colors)
-    .map(([key, value]) => `        "${key}": "${value}"`)
-    .join(',\n');
-  
-  return `"nocta": {\n${colors}\n      }`;
 }

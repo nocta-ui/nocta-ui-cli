@@ -1,8 +1,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import inquirer from 'inquirer';
-import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, addDesignTokensToTailwindConfig, checkTailwindInstallation, rollbackInitChanges, detectFramework, getTailwindConfigPath } from '../utils/files';
-import { Config, AVAILABLE_THEMES } from '../types';
+import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, addDesignTokensToTailwindConfig, checkTailwindInstallation, rollbackInitChanges, detectFramework, getTailwindConfigPath, addBaseCssVariables } from '../utils/files';
+import { Config } from '../types';
 import fs from 'fs-extra';
 import path from 'path';
 
@@ -88,28 +87,8 @@ export async function init(): Promise<void> {
     // Get the appropriate Tailwind config path based on TypeScript project detection
     const tailwindConfigPath = await getTailwindConfigPath();
 
-    // Theme selection
+    // Create configuration without theme selection (single default palette)
     spinner.stop();
-    console.log(chalk.blue.bold('\nSelect a color theme:'));
-    AVAILABLE_THEMES.forEach((theme, index) => {
-      const isDefault = theme.name === 'charcoal' ? chalk.gray(' (default)') : '';
-      console.log(`  ${index + 1}. ${chalk.green(theme.displayName)} - ${chalk.gray(theme.description)}${isDefault}`);
-    });
-
-    const { selectedTheme } = await inquirer.prompt([
-      {
-        type: 'list',
-        name: 'selectedTheme',
-        message: 'Choose your theme:',
-        choices: AVAILABLE_THEMES.map(theme => ({
-          name: `${theme.displayName} - ${theme.description}`,
-          value: theme.name
-        })),
-        default: 'charcoal'
-      }
-    ]);
-
-    console.log(chalk.green(`Selected theme: ${AVAILABLE_THEMES.find(t => t.name === selectedTheme)?.displayName}\n`));
     spinner.start('Creating configuration...');
 
     let config: Config;
@@ -119,7 +98,6 @@ export async function init(): Promise<void> {
       config = {
         style: "default",
         tsx: true,
-        theme: selectedTheme,
         tailwind: {
           config: isTailwindV4 ? "" : tailwindConfigPath,
           css: isAppRouter ? "app/globals.css" : "styles/globals.css"
@@ -133,7 +111,6 @@ export async function init(): Promise<void> {
       config = {
         style: "default",
         tsx: true,
-        theme: selectedTheme,
         tailwind: {
           config: isTailwindV4 ? "" : tailwindConfigPath,
           css: "src/App.css"
@@ -147,7 +124,6 @@ export async function init(): Promise<void> {
       config = {
         style: "default",
         tsx: true,
-        theme: selectedTheme,
         tailwind: {
           config: isTailwindV4 ? "" : tailwindConfigPath,
           css: "app/app.css"
@@ -203,31 +179,35 @@ export function cn(...inputs: ClassValue[]) {
     }
 
     // Add design tokens
-    spinner.text = 'Adding Nocta design tokens...';
+    spinner.text = 'Adding semantic color variables...';
     let tokensAdded = false;
     let tokensLocation = '';
     
     try {
       if (isTailwindV4) {
-        // For Tailwind v4, add tokens to CSS file
+        // For Tailwind v4, add tokens to CSS file using @theme
         const cssPath = config.tailwind.css;
-        const added = await addDesignTokensToCss(cssPath, selectedTheme);
+        const added = await addDesignTokensToCss(cssPath);
         if (added) {
           tokensAdded = true;
           tokensLocation = cssPath;
         }
       } else {
-        // For Tailwind v3, add tokens to tailwind config
+        // For Tailwind v3, add base CSS variables and map them in tailwind config
+        const cssPath = config.tailwind.css;
+        try {
+          await addBaseCssVariables(cssPath);
+        } catch {}
         const configPath = config.tailwind.config;
         if (configPath) {
-          const added = await addDesignTokensToTailwindConfig(configPath, selectedTheme);
+          const added = await addDesignTokensToTailwindConfig(configPath);
           if (added) {
             tokensAdded = true;
             tokensLocation = configPath;
           }
         } else {
           // This shouldn't happen for v3, but create config if needed
-          const added = await addDesignTokensToTailwindConfig(tailwindConfigPath, selectedTheme);
+          const added = await addDesignTokensToTailwindConfig(tailwindConfigPath);
           if (added) {
             tokensAdded = true;
             tokensLocation = tailwindConfigPath;
@@ -244,9 +224,6 @@ export function cn(...inputs: ClassValue[]) {
     console.log(chalk.green('\nConfiguration created:'));
     console.log(chalk.gray(`   nocta.config.json (${frameworkInfo})`));
     
-    console.log(chalk.blue('\nTheme selected:'));
-    console.log(chalk.gray(`   ${AVAILABLE_THEMES.find(t => t.name === selectedTheme)?.displayName} (${selectedTheme})`));
-    
     console.log(chalk.blue('\nDependencies installed:'));
     console.log(chalk.gray(`   clsx@${requiredDependencies.clsx}`));
     console.log(chalk.gray(`   tailwind-merge@${requiredDependencies['tailwind-merge']}`));
@@ -259,15 +236,9 @@ export function cn(...inputs: ClassValue[]) {
     }
     
     if (tokensAdded) {
-      console.log(chalk.green('\nDesign tokens added:'));
+      console.log(chalk.green('\nColor variables added:'));
       console.log(chalk.gray(`   ${tokensLocation}`));
-      console.log(chalk.gray(`   • Nocta color palette (nocta-50 to nocta-950)`));
-      console.log(chalk.gray(`   • Theme: ${AVAILABLE_THEMES.find(t => t.name === selectedTheme)?.displayName}`));
-      if (isTailwindV4) {
-        console.log(chalk.gray(`   • Use: text-nocta-500, bg-nocta-100, etc.`));
-      } else {
-        console.log(chalk.gray(`   • Use: text-nocta-500, bg-nocta-100, etc.`));
-      }
+      console.log(chalk.gray(`   • Semantic tokens (background, foreground, primary, border, etc.)`));
     } else if (!tokensAdded && tokensLocation === '') {
       console.log(chalk.yellow('\nDesign tokens skipped (already exist or error occurred)'));
     }
