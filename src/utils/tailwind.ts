@@ -110,14 +110,6 @@ export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean
   }
 }
 
-export async function addDesignTokensToTailwindConfig(_configFilePath: string): Promise<boolean> {
-  try {
-    throw new Error('Tailwind v3 is no longer supported by nocta-ui CLI');
-  } catch (error) {
-    throw new Error(`Failed to add design tokens to Tailwind config: ${error}`);
-  }
-}
-
 export async function checkTailwindInstallation(): Promise<{ installed: boolean; version?: string }> {
   try {
     const packageJson = await fs.readJson('package.json');

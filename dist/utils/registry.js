@@ -58,22 +58,18 @@ async function getCategories() {
     return registry.categories;
 }
 async function getComponentWithDependencies(name, visited = new Set()) {
-    // Prevent infinite loops
     if (visited.has(name)) {
         return [];
     }
     visited.add(name);
     const component = await getComponent(name);
     const result = [component];
-    // Recursively get internal dependencies
     if (component.internalDependencies && component.internalDependencies.length > 0) {
         for (const depName of component.internalDependencies) {
             const depComponents = await getComponentWithDependencies(depName, visited);
-            // Add dependencies at the beginning so they're installed first
             result.unshift(...depComponents);
         }
     }
-    // Remove duplicates by component name (keep first occurrence)
     const uniqueComponents = [];
     const seenNames = new Set();
     for (const comp of result) {

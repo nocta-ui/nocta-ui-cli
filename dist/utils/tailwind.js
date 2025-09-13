@@ -4,7 +4,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addDesignTokensToCss = addDesignTokensToCss;
-exports.addDesignTokensToTailwindConfig = addDesignTokensToTailwindConfig;
 exports.checkTailwindInstallation = checkTailwindInstallation;
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
@@ -112,14 +111,6 @@ async function addDesignTokensToCss(cssFilePath) {
     }
     catch (error) {
         throw new Error(`Failed to add design tokens to CSS file: ${error}`);
-    }
-}
-async function addDesignTokensToTailwindConfig(_configFilePath) {
-    try {
-        throw new Error('Tailwind v3 is no longer supported by nocta-ui CLI');
-    }
-    catch (error) {
-        throw new Error(`Failed to add design tokens to Tailwind config: ${error}`);
     }
 }
 async function checkTailwindInstallation() {

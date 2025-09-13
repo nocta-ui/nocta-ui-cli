@@ -77,7 +77,7 @@ export async function init(): Promise<void> {
     spinner.text = `Found ${frameworkInfo} ✓`;
 
     const versionStr = tailwindCheck.version || '';
-    const majorMatch = versionStr.match(/(\d+)\./);
+    const majorMatch = versionStr.match(/[\^~]?(\d+)(?:\.|\b)/);
     const major = majorMatch ? parseInt(majorMatch[1], 10) : (/latest/i.test(versionStr) ? 4 : 0);
     const isTailwindV4 = major >= 4;
     if (!isTailwindV4) {

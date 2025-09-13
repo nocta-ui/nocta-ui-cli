@@ -60,7 +60,6 @@ export async function getCategories(): Promise<Record<string, { name: string; de
 }
 
 export async function getComponentWithDependencies(name: string, visited: Set<string> = new Set()): Promise<Component[]> {
-  // Prevent infinite loops
   if (visited.has(name)) {
     return [];
   }
@@ -70,16 +69,13 @@ export async function getComponentWithDependencies(name: string, visited: Set<st
   const component = await getComponent(name);
   const result = [component];
   
-  // Recursively get internal dependencies
   if (component.internalDependencies && component.internalDependencies.length > 0) {
     for (const depName of component.internalDependencies) {
       const depComponents = await getComponentWithDependencies(depName, visited);
-      // Add dependencies at the beginning so they're installed first
       result.unshift(...depComponents);
     }
   }
   
-  // Remove duplicates by component name (keep first occurrence)
   const uniqueComponents = [];
   const seenNames = new Set<string>();
   

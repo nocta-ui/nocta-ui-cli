@@ -46,8 +46,8 @@ export async function detectFramework(): Promise<FrameworkDetection> {
     const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
     const hasReact = 'react' in dependencies;
 
-    // Next.js
-    const nextConfigFiles = ['next.config.js', 'next.config.mjs', 'next.config.ts'];
+    // Next.js Detection (Enhanced)
+    const nextConfigFiles = ['next.config.js', 'next.config.mjs', 'next.config.ts', 'next.config.cjs'];
     const foundNextConfigs: string[] = [];
     for (const config of nextConfigFiles) {
       if (await fs.pathExists(config)) {
@@ -58,16 +58,35 @@ export async function detectFramework(): Promise<FrameworkDetection> {
     const hasNext = 'next' in dependencies;
     if (hasNext || foundNextConfigs.length > 0) {
       let appStructure: 'app-router' | 'pages-router' | 'unknown' = 'unknown';
-      if (await fs.pathExists('app') && await fs.pathExists('app/layout.tsx')) {
-        appStructure = 'app-router';
-      } else if (
-        await fs.pathExists('pages') &&
-        (await fs.pathExists('pages/_app.tsx') ||
-          await fs.pathExists('pages/_app.js') ||
-          await fs.pathExists('pages/index.tsx') ||
-          await fs.pathExists('pages/index.js'))
-      ) {
-        appStructure = 'pages-router';
+      
+      // Enhanced App Router detection - check multiple locations and file extensions
+      const appRouterPaths = [
+        'app/layout.tsx', 'app/layout.ts', 'app/layout.jsx', 'app/layout.js',
+        'src/app/layout.tsx', 'src/app/layout.ts', 'src/app/layout.jsx', 'src/app/layout.js'
+      ];
+      
+      for (const layoutPath of appRouterPaths) {
+        if (await fs.pathExists(layoutPath)) {
+          appStructure = 'app-router';
+          break;
+        }
+      }
+
+      // Enhanced Pages Router detection - check multiple locations
+      if (appStructure === 'unknown') {
+        const pagesRouterPaths = [
+          'pages/_app.tsx', 'pages/_app.ts', 'pages/_app.jsx', 'pages/_app.js',
+          'pages/index.tsx', 'pages/index.ts', 'pages/index.jsx', 'pages/index.js',
+          'src/pages/_app.tsx', 'src/pages/_app.ts', 'src/pages/_app.jsx', 'src/pages/_app.js',
+          'src/pages/index.tsx', 'src/pages/index.ts', 'src/pages/index.jsx', 'src/pages/index.js'
+        ];
+        
+        for (const pagePath of pagesRouterPaths) {
+          if (await fs.pathExists(pagePath)) {
+            appStructure = 'pages-router';
+            break;
+          }
+        }
       }
 
       return {
@@ -83,7 +102,7 @@ export async function detectFramework(): Promise<FrameworkDetection> {
       };
     }
 
-    // React Router 7
+    // React Router 7 Framework Mode Detection (Enhanced)
     const reactRouterConfigFiles = ['react-router.config.ts', 'react-router.config.js'];
     const foundReactRouterConfigs: string[] = [];
     for (const config of reactRouterConfigFiles) {
@@ -94,15 +113,17 @@ export async function detectFramework(): Promise<FrameworkDetection> {
 
     const hasReactRouter = 'react-router' in dependencies;
     const hasReactRouterDev = '@react-router/dev' in dependencies;
+    const hasRemixRunReact = '@remix-run/react' in dependencies; // React Router 7 can use this
 
-    if (hasReactRouter && hasReact) {
+    if ((hasReactRouter || hasReactRouterDev || hasRemixRunReact) && hasReact) {
       let isReactRouterFramework = false;
 
+      // Enhanced React Router 7 framework mode indicators
       const reactRouterIndicators = [
-        'app/routes.ts',
-        'app/root.tsx',
-        'app/entry.client.tsx',
-        'app/entry.server.tsx',
+        'app/routes.ts', 'app/routes.tsx', 'app/routes.js', 'app/routes.jsx',
+        'app/root.tsx', 'app/root.ts', 'app/root.jsx', 'app/root.js',
+        'app/entry.client.tsx', 'app/entry.client.ts', 'app/entry.client.jsx', 'app/entry.client.js',
+        'app/entry.server.tsx', 'app/entry.server.ts', 'app/entry.server.jsx', 'app/entry.server.js'
       ];
 
       for (const indicator of reactRouterIndicators) {
@@ -112,26 +133,32 @@ export async function detectFramework(): Promise<FrameworkDetection> {
         }
       }
 
+      // Strong indicators for React Router 7 framework mode
       if (hasReactRouterDev || foundReactRouterConfigs.length > 0) {
+        isReactRouterFramework = true;
+      }
+
+      // Additional check: if we have @remix-run/react but no Remix config, it's likely React Router 7
+      if (hasRemixRunReact && !await fs.pathExists('remix.config.js') && !await fs.pathExists('remix.config.ts')) {
         isReactRouterFramework = true;
       }
 
       if (isReactRouterFramework) {
         return {
           framework: 'react-router',
-          version: dependencies['react-router'],
+          version: dependencies['react-router'] || dependencies['@react-router/dev'] || dependencies['@remix-run/react'],
           details: {
             hasConfig: foundReactRouterConfigs.length > 0,
             hasReactDependency: hasReact,
-            hasFrameworkDependency: hasReactRouter,
+            hasFrameworkDependency: hasReactRouter || hasReactRouterDev || hasRemixRunReact,
             configFiles: foundReactRouterConfigs,
           },
         };
       }
     }
 
-    // Vite + React
-    const viteConfigFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs'];
+    // Vite + React Detection (Enhanced)
+    const viteConfigFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs', 'vite.config.cjs'];
     const foundViteConfigs: string[] = [];
     for (const config of viteConfigFiles) {
       if (await fs.pathExists(config)) {
@@ -143,27 +170,41 @@ export async function detectFramework(): Promise<FrameworkDetection> {
     const hasViteReactPlugin = '@vitejs/plugin-react' in dependencies || '@vitejs/plugin-react-swc' in dependencies;
 
     if ((hasVite || foundViteConfigs.length > 0) && hasReact) {
-      let isReactProject = hasViteReactPlugin;
+      let isReactProject = false;
 
+      // Strong indicator: Vite React plugin
+      if (hasViteReactPlugin) {
+        isReactProject = true;
+      }
+
+      // Check for typical Vite + React project structure
       if (!isReactProject) {
-        const reactIndicators = ['src/App.tsx', 'src/App.jsx', 'src/main.tsx', 'src/main.jsx', 'index.html'];
-        for (const indicator of reactIndicators) {
+        const viteReactIndicators = [
+          'src/App.tsx', 'src/App.jsx', 'src/App.ts', 'src/App.js',
+          'src/main.tsx', 'src/main.jsx', 'src/main.ts', 'src/main.js',
+          'src/index.tsx', 'src/index.jsx', 'src/index.ts', 'src/index.js'
+        ];
+        
+        for (const indicator of viteReactIndicators) {
           if (await fs.pathExists(indicator)) {
-            if (indicator === 'index.html') {
-              try {
-                const htmlContent = await fs.readFile('index.html', 'utf8');
-                if (htmlContent.includes('id="root"') || htmlContent.includes("id='root'")) {
-                  isReactProject = true;
-                  break;
-                }
-              } catch {
-                // ignore
-              }
-            } else {
-              isReactProject = true;
-              break;
-            }
+            isReactProject = true;
+            break;
           }
+        }
+      }
+
+      // Additional validation: check if index.html has Vite-specific patterns AND React root
+      if (!isReactProject && await fs.pathExists('index.html')) {
+        try {
+          const htmlContent = await fs.readFile('index.html', 'utf8');
+          const hasReactRoot = htmlContent.includes('id="root"') || htmlContent.includes("id='root'");
+          const hasViteScript = htmlContent.includes('/src/main.') || htmlContent.includes('/src/index.') || htmlContent.includes('type="module"');
+          
+          if (hasReactRoot && hasViteScript) {
+            isReactProject = true;
+          }
+        } catch {
+          // ignore
         }
       }
 
