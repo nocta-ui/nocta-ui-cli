@@ -1,9 +1,7 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, addDesignTokensToTailwindConfig, checkTailwindInstallation, rollbackInitChanges, detectFramework, getTailwindConfigPath, addBaseCssVariables } from '../utils/files';
+import { writeConfig, readConfig, installDependencies, writeComponentFile, fileExists, addDesignTokensToCss, checkTailwindInstallation, rollbackInitChanges, detectFramework } from '../utils';
 import { Config } from '../types';
-import fs from 'fs-extra';
-import path from 'path';
 
 export async function init(): Promise<void> {
   const spinner = ora('Initializing nocta-ui...').start();
@@ -17,7 +15,6 @@ export async function init(): Promise<void> {
       return;
     }
 
-    // Check if Tailwind CSS is installed
     spinner.text = 'Checking Tailwind CSS installation...';
     const tailwindCheck = await checkTailwindInstallation();
     
@@ -36,7 +33,6 @@ export async function init(): Promise<void> {
 
     spinner.text = `Found Tailwind CSS ${tailwindCheck.version} ✓`;
 
-    // Detect framework with detailed validation
     spinner.text = 'Detecting project framework...';
     const frameworkDetection = await detectFramework();
     
@@ -68,7 +64,6 @@ export async function init(): Promise<void> {
       return;
     }
 
-    // Show detected framework info
     let frameworkInfo = '';
     if (frameworkDetection.framework === 'nextjs') {
       const routerType = frameworkDetection.details.appStructure;
@@ -81,13 +76,22 @@ export async function init(): Promise<void> {
     
     spinner.text = `Found ${frameworkInfo} ✓`;
 
-    // Determine Tailwind version from already checked installation
-    const isTailwindV4 = tailwindCheck.version ? (tailwindCheck.version.includes('^4') || tailwindCheck.version.startsWith('4.')) : false;
+    const versionStr = tailwindCheck.version || '';
+    const majorMatch = versionStr.match(/(\d+)\./);
+    const major = majorMatch ? parseInt(majorMatch[1], 10) : (/latest/i.test(versionStr) ? 4 : 0);
+    const isTailwindV4 = major >= 4;
+    if (!isTailwindV4) {
+      spinner.fail('Tailwind CSS v4 is required');
+      console.log(chalk.red('\nDetected Tailwind version that is not v4: ' + (tailwindCheck.version || 'unknown')));
+      console.log(chalk.yellow('Please upgrade to Tailwind CSS v4:'));
+      console.log(chalk.gray('   npm install -D tailwindcss@latest'));
+      console.log(chalk.gray('   # or'));
+      console.log(chalk.gray('   yarn add -D tailwindcss@latest'));
+      console.log(chalk.gray('   # or'));
+      console.log(chalk.gray('   pnpm add -D tailwindcss@latest'));
+      return;
+    }
 
-    // Get the appropriate Tailwind config path based on TypeScript project detection
-    const tailwindConfigPath = await getTailwindConfigPath();
-
-    // Create configuration without theme selection (single default palette)
     spinner.stop();
     spinner.start('Creating configuration...');
 
@@ -99,7 +103,6 @@ export async function init(): Promise<void> {
         style: "default",
         tsx: true,
         tailwind: {
-          config: isTailwindV4 ? "" : tailwindConfigPath,
           css: isAppRouter ? "app/globals.css" : "styles/globals.css"
         },
         aliases: {
@@ -112,7 +115,6 @@ export async function init(): Promise<void> {
         style: "default",
         tsx: true,
         tailwind: {
-          config: isTailwindV4 ? "" : tailwindConfigPath,
           css: "src/App.css"
         },
         aliases: {
@@ -125,7 +127,6 @@ export async function init(): Promise<void> {
         style: "default",
         tsx: true,
         tailwind: {
-          config: isTailwindV4 ? "" : tailwindConfigPath,
           css: "app/app.css"
         },
         aliases: {
@@ -134,18 +135,17 @@ export async function init(): Promise<void> {
         }
       };
     } else {
-      // This shouldn't happen due to earlier validation, but just in case
       throw new Error('Unsupported framework configuration');
     }
 
     await writeConfig(config);
 
-    // Install required dependencies
     spinner.text = 'Installing required dependencies...';
     const requiredDependencies = {
       'clsx': '^2.1.1',
       'tailwind-merge': '^3.3.1',
-      'class-variance-authority': '^0.7.1'
+      'class-variance-authority': '^0.7.1',
+      '@ariakit/react': '^0.4.18'
     };
     
     try {
@@ -155,7 +155,6 @@ export async function init(): Promise<void> {
       console.log(chalk.yellow('Run: npm install clsx tailwind-merge'));
     }
 
-    // Create utils file
     spinner.text = 'Creating utility functions...';
     const utilsContent = `import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -178,41 +177,16 @@ export function cn(...inputs: ClassValue[]) {
       utilsCreated = true;
     }
 
-    // Add design tokens
     spinner.text = 'Adding semantic color variables...';
     let tokensAdded = false;
     let tokensLocation = '';
     
     try {
-      if (isTailwindV4) {
-        // For Tailwind v4, add tokens to CSS file using @theme
-        const cssPath = config.tailwind.css;
-        const added = await addDesignTokensToCss(cssPath);
-        if (added) {
-          tokensAdded = true;
-          tokensLocation = cssPath;
-        }
-      } else {
-        // For Tailwind v3, add base CSS variables and map them in tailwind config
-        const cssPath = config.tailwind.css;
-        try {
-          await addBaseCssVariables(cssPath);
-        } catch {}
-        const configPath = config.tailwind.config;
-        if (configPath) {
-          const added = await addDesignTokensToTailwindConfig(configPath);
-          if (added) {
-            tokensAdded = true;
-            tokensLocation = configPath;
-          }
-        } else {
-          // This shouldn't happen for v3, but create config if needed
-          const added = await addDesignTokensToTailwindConfig(tailwindConfigPath);
-          if (added) {
-            tokensAdded = true;
-            tokensLocation = tailwindConfigPath;
-          }
-        }
+      const cssPath = config.tailwind.css;
+      const added = await addDesignTokensToCss(cssPath);
+      if (added) {
+        tokensAdded = true;
+        tokensLocation = cssPath;
       }
     } catch (error) {
       spinner.warn('Design tokens installation failed, but you can add them manually');
@@ -254,7 +228,6 @@ export function cn(...inputs: ClassValue[]) {
   } catch (error) {
     spinner.fail('Failed to initialize nocta-ui');
     
-    // Rollback any changes that might have been made
     try {
       await rollbackInitChanges();
       console.log(chalk.yellow('Rolled back partial changes'));

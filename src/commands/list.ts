@@ -1,6 +1,6 @@
 import chalk from 'chalk';
 import ora from 'ora';
-import { listComponents, getCategories } from '../utils/registry';
+import { listComponents, getCategories } from '../utils';
 
 export async function list(): Promise<void> {
   const spinner = ora('Fetching components...').start();

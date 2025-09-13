@@ -47,10 +47,8 @@ exports.addDesignTokensToCss = addDesignTokensToCss;
 exports.addDesignTokensToTailwindConfig = addDesignTokensToTailwindConfig;
 exports.checkTailwindInstallation = checkTailwindInstallation;
 exports.isTypeScriptProject = isTypeScriptProject;
-exports.getTailwindConfigPath = getTailwindConfigPath;
 exports.rollbackInitChanges = rollbackInitChanges;
 exports.detectFramework = detectFramework;
-exports.addBaseCssVariables = addBaseCssVariables;
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importStar(require("path"));
 const fs_1 = require("fs");
@@ -119,7 +117,6 @@ async function writeComponentFile(filePath, content) {
 }
 function resolveComponentPath(componentFilePath, config) {
     const fileName = path_1.default.basename(componentFilePath);
-    const componentFolder = path_1.default.basename(path_1.default.dirname(componentFilePath));
     return path_1.default.join(config.aliases.components, 'ui', fileName);
 }
 async function installDependencies(dependencies) {
@@ -248,187 +245,10 @@ async function addDesignTokensToCss(cssFilePath) {
     }
 }
 async function addDesignTokensToTailwindConfig(configFilePath) {
-    const fullPath = path_1.default.join(process.cwd(), configFilePath);
     try {
-        let configContent = '';
-        const isTypeScript = configFilePath.endsWith('.ts');
-        if (await fs_extra_1.default.pathExists(fullPath)) {
-            configContent = await fs_extra_1.default.readFile(fullPath, 'utf8');
-            // Check if semantic colors already exist
-            if (configContent.includes('colors:') && configContent.includes('background') && configContent.includes('primary')) {
-                return false; // Tokens already exist
-            }
-        }
-        else {
-            // Create a basic tailwind config if it doesn't exist
-            if (isTypeScript) {
-                configContent = `import type { Config } from "tailwindcss";
-
-export default {
-  darkMode: ["class"],
-  content: [],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-} satisfies Config;`;
-            }
-            else {
-                configContent = `/** @type {import('tailwindcss').Config} */
-module.exports = {
-  darkMode: ["class"],
-  content: [],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}`;
-            }
-        }
-        // Semantic colors mapping referencing CSS variables
-        const colorsMapping = `background: 'var(--color-background)',
-        'background-muted': 'var(--color-background-muted)',
-        'background-elevated': 'var(--color-background-elevated)',
-        foreground: 'var(--color-foreground)',
-        'foreground-muted': 'var(--color-foreground-muted)',
-        'foreground-subtle': 'var(--color-foreground-subtle)',
-        primary: 'var(--color-primary)',
-        'primary-muted': 'var(--color-primary-muted)',
-        'primary-foreground': 'var(--color-primary-foreground)',
-        border: 'var(--color-border)',
-        'border-muted': 'var(--color-border-muted)',
-        'border-subtle': 'var(--color-border-subtle)',
-        ring: 'var(--color-ring)',
-        'ring-offset': 'var(--color-ring-offset)',
-        overlay: 'var(--color-overlay)',
-        'gradient-primary-start': 'var(--color-gradient-primary-start)',
-        'gradient-primary-end': 'var(--color-gradient-primary-end)'`;
-        let modifiedContent = configContent;
-        // Look for existing colors section in extend
-        const lines = modifiedContent.split('\n');
-        let inExtend = false;
-        let inColors = false;
-        let extendIndent = '';
-        let colorsIndent = '';
-        let foundColors = false;
-        let foundExtend = false;
-        let colorsEndIndex = -1;
-        let extendEndIndex = -1;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            const trimmed = line.trim();
-            // Detect extend section
-            if (trimmed.includes('extend:') && trimmed.includes('{')) {
-                inExtend = true;
-                foundExtend = true;
-                extendIndent = line.match(/^(\s*)/)?.[1] || '  ';
-                continue;
-            }
-            if (inExtend) {
-                // Detect colors section inside extend
-                if (trimmed.includes('colors:') && trimmed.includes('{')) {
-                    inColors = true;
-                    foundColors = true;
-                    colorsIndent = line.match(/^(\s*)/)?.[1] || '    ';
-                    continue;
-                }
-                // Find end of colors section (closing brace with comma or without)
-                if (inColors && (trimmed === '},' || trimmed === '}')) {
-                    const currentIndent = line.match(/^(\s*)/)?.[1] || '';
-                    if (currentIndent.length <= colorsIndent.length) {
-                        colorsEndIndex = i;
-                        inColors = false;
-                    }
-                    continue;
-                }
-                // Find end of extend section
-                if (!inColors && (trimmed === '},' || trimmed === '}')) {
-                    const currentIndent = line.match(/^(\s*)/)?.[1] || '';
-                    if (currentIndent.length <= extendIndent.length) {
-                        extendEndIndex = i;
-                        inExtend = false;
-                        break;
-                    }
-                }
-            }
-        }
-        if (foundColors && colorsEndIndex > -1) {
-            // Add semantic colors to existing colors section
-            const beforeColorsEnd = lines.slice(0, colorsEndIndex);
-            const colorsEndLine = lines[colorsEndIndex];
-            const afterColorsEnd = lines.slice(colorsEndIndex + 1);
-            // Check if the last color has a comma
-            let lastColorLine = '';
-            for (let i = beforeColorsEnd.length - 1; i >= 0; i--) {
-                const line = beforeColorsEnd[i].trim();
-                if (line && !line.startsWith('colors:') && !line.includes('{')) {
-                    lastColorLine = line;
-                    break;
-                }
-            }
-            const needsComma = lastColorLine && !lastColorLine.endsWith(',');
-            const indentForNocta = colorsIndent + '  ';
-            // Add comma to last existing color if needed
-            if (needsComma) {
-                for (let i = beforeColorsEnd.length - 1; i >= 0; i--) {
-                    const line = beforeColorsEnd[i];
-                    const trimmed = line.trim();
-                    if (trimmed && !trimmed.startsWith('colors:') && !trimmed.includes('{') && !trimmed.includes('}')) {
-                        beforeColorsEnd[i] = line + ',';
-                        break;
-                    }
-                }
-            }
-            // Add semantic colors mapping
-            const noctaLines = colorsMapping.split('\n').map(line => line ? indentForNocta + line : line);
-            modifiedContent = [
-                ...beforeColorsEnd,
-                ...noctaLines,
-                colorsEndLine,
-                ...afterColorsEnd
-            ].join('\n');
-        }
-        else if (foundExtend && extendEndIndex > -1) {
-            // Add colors section to existing extend
-            const beforeExtendEnd = lines.slice(0, extendEndIndex);
-            const extendEndLine = lines[extendEndIndex];
-            const afterExtendEnd = lines.slice(extendEndIndex + 1);
-            // Check if extend has existing content
-            let hasContent = false;
-            for (let i = beforeExtendEnd.length - 1; i >= 0; i--) {
-                const line = beforeExtendEnd[i].trim();
-                if (line && !line.includes('extend:') && !line.includes('{')) {
-                    hasContent = true;
-                    if (!line.endsWith(',')) {
-                        beforeExtendEnd[i] = beforeExtendEnd[i] + ',';
-                    }
-                    break;
-                }
-            }
-            const colorsLines = [
-                `${extendIndent}  colors: {`,
-                ...colorsMapping.split('\n').map(line => line ? `${extendIndent}    ${line}` : line),
-                `${extendIndent}  }${hasContent ? ',' : ''}`
-            ];
-            modifiedContent = [
-                ...beforeExtendEnd,
-                ...colorsLines,
-                extendEndLine,
-                ...afterExtendEnd
-            ].join('\n');
-        }
-        else {
-            // No extend section, add complete theme.extend
-            const themeRegex = /(theme:\s*{)(\s*)(})/;
-            if (themeRegex.test(modifiedContent)) {
-                modifiedContent = modifiedContent.replace(themeRegex, (match, before, whitespace, after) => {
-                    return `${before}\n    extend: {\n      colors: {\n        ${colorsMapping}\n      }\n    },\n  ${after}`;
-                });
-            }
-        }
-        await fs_extra_1.default.ensureDir(path_1.default.dirname(fullPath));
-        await fs_extra_1.default.writeFile(fullPath, modifiedContent, 'utf8');
-        return true;
+        // Tailwind v3 support has been removed. This function is kept for backward compatibility
+        // but will always throw to signal the change.
+        throw new Error('Tailwind v3 is no longer supported by nocta-ui CLI');
     }
     catch (error) {
         throw new Error(`Failed to add design tokens to Tailwind config: ${error}`);
@@ -466,19 +286,6 @@ async function isTypeScriptProject() {
     catch (error) {
         return false;
     }
-}
-async function getTailwindConfigPath() {
-    const isTs = await isTypeScriptProject();
-    // Check if tailwind.config.ts exists (preferred for TS projects)
-    if (isTs && await fs_extra_1.default.pathExists('tailwind.config.ts')) {
-        return 'tailwind.config.ts';
-    }
-    // Check if tailwind.config.js exists
-    if (await fs_extra_1.default.pathExists('tailwind.config.js')) {
-        return 'tailwind.config.js';
-    }
-    // Return preferred extension based on project type
-    return isTs ? 'tailwind.config.ts' : 'tailwind.config.js';
 }
 async function rollbackInitChanges() {
     const filesToCheck = [
@@ -689,43 +496,5 @@ async function detectFramework() {
                 configFiles: []
             }
         };
-    }
-}
-// Add base CSS variables (:root and .dark) to a CSS file (useful for Tailwind v3)
-async function addBaseCssVariables(cssFilePath) {
-    const fullPath = path_1.default.join(process.cwd(), cssFilePath);
-    const BASE_VARS = `:root {\n\t--color-background: oklch(0.97 0 0);\n\t--color-background-muted: oklch(0.922 0 0);\n\t--color-background-elevated: oklch(0.87 0 0);\n\t--color-foreground: oklch(0.205 0 0);\n\t--color-foreground-muted: oklch(0.371 0 0);\n\t--color-foreground-subtle: oklch(0.708 0 0);\n\t--color-border: oklch(0.205 0 0);\n\t--color-border-muted: oklch(0.922 0 0);\n\t--color-border-subtle: oklch(0.708 0 0);\n\t--color-ring: oklch(0.205 0 0);\n\t--color-ring-offset: oklch(0.97 0 0);\n\t--color-primary: oklch(0.205 0 0);\n\t--color-primary-foreground: oklch(0.97 0 0);\n\t--color-primary-muted: oklch(0.371 0 0);\n\t--color-overlay: oklch(0.145 0 0);\n\t--color-gradient-primary-start: oklch(0.205 0 0);\n\t--color-gradient-primary-end: oklch(0.371 0 0);\n+}\n\n+.dark {\n\t--color-background: oklch(0.205 0 0);\n\t--color-background-muted: oklch(0.269 0 0);\n\t--color-background-elevated: oklch(0.371 0 0);\n\t--color-foreground: oklch(0.97 0 0);\n\t--color-foreground-muted: oklch(0.87 0 0);\n\t--color-foreground-subtle: oklch(0.556 0 0);\n\t--color-border: oklch(0.97 0 0);\n\t--color-border-muted: oklch(0.269 0 0);\n\t--color-border-subtle: oklch(0.371 0 0);\n\t--color-ring: oklch(0.97 0 0);\n\t--color-ring-offset: oklch(0.205 0 0);\n\t--color-primary: oklch(0.97 0 0);\n\t--color-primary-foreground: oklch(0.205 0 0);\n\t--color-primary-muted: oklch(0.87 0 0);\n\t--color-overlay: oklch(0.145 0 0);\n\t--color-gradient-primary-start: oklch(0.371 0 0);\n\t--color-gradient-primary-end: oklch(0.371 0 0);\n+}`;
-    try {
-        let cssContent = '';
-        if (await fs_extra_1.default.pathExists(fullPath)) {
-            cssContent = await fs_extra_1.default.readFile(fullPath, 'utf8');
-            if (cssContent.includes('--color-background') && cssContent.includes('--color-primary')) {
-                return false;
-            }
-        }
-        const lines = cssContent.split('\n');
-        let lastImportIndex = -1;
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (line.startsWith('@import'))
-                lastImportIndex = i;
-            else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//'))
-                break;
-        }
-        let newContent;
-        if (lastImportIndex >= 0) {
-            const before = lines.slice(0, lastImportIndex + 1);
-            const after = lines.slice(lastImportIndex + 1);
-            newContent = [...before, '', BASE_VARS, '', ...after].join('\n');
-        }
-        else {
-            newContent = `${BASE_VARS}\n\n${cssContent}`;
-        }
-        await fs_extra_1.default.ensureDir(path_1.default.dirname(fullPath));
-        await fs_extra_1.default.writeFile(fullPath, newContent, 'utf8');
-        return true;
-    }
-    catch (error) {
-        throw new Error(`Failed to add base CSS variables: ${error}`);
     }
 }

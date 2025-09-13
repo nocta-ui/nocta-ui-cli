@@ -13,7 +13,6 @@ export declare function checkTailwindInstallation(): Promise<{
     version?: string;
 }>;
 export declare function isTypeScriptProject(): Promise<boolean>;
-export declare function getTailwindConfigPath(): Promise<string>;
 export declare function rollbackInitChanges(): Promise<void>;
 export interface FrameworkDetection {
     framework: 'nextjs' | 'vite-react' | 'react-router' | 'unknown';
@@ -27,4 +26,3 @@ export interface FrameworkDetection {
     };
 }
 export declare function detectFramework(): Promise<FrameworkDetection>;
-export declare function addBaseCssVariables(cssFilePath: string): Promise<boolean>;

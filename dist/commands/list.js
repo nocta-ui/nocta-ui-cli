@@ -6,13 +6,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.list = list;
 const chalk_1 = __importDefault(require("chalk"));
 const ora_1 = __importDefault(require("ora"));
-const registry_1 = require("../utils/registry");
+const utils_1 = require("../utils");
 async function list() {
     const spinner = (0, ora_1.default)('Fetching components...').start();
     try {
         const [components, categories] = await Promise.all([
-            (0, registry_1.listComponents)(),
-            (0, registry_1.getCategories)()
+            (0, utils_1.listComponents)(),
+            (0, utils_1.getCategories)()
         ]);
         spinner.stop();
         console.log(chalk_1.default.blue.bold('\nAvailable nocta-ui components:\n'));

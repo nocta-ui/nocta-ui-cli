@@ -1,18 +1,15 @@
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
-import { getComponent, getComponentFile, getComponentWithDependencies } from '../utils/registry';
-import { readConfig, writeComponentFile, resolveComponentPath, installDependencies, fileExists, getInstalledDependencies, detectFramework } from '../utils/files';
+import { getComponent, getComponentFile, getComponentWithDependencies, readConfig, writeComponentFile, resolveComponentPath, installDependencies, fileExists, getInstalledDependencies, detectFramework } from '../utils';
 import { ComponentFileWithContent } from '../types';
 import semver from 'semver';
 
 function processComponentContent(content: string, framework: string): string {
-  // For React Router 7, replace @ alias with ~ alias
   if (framework === 'react-router') {
     return content.replace(/from\s+(['"])@\//g, "from $1~/");
   }
   
-  // For other frameworks (Next.js, Vite), keep @ alias
   return content;
 }
 
@@ -34,21 +31,17 @@ export async function add(componentNames: string[]): Promise<void> {
       return;
     }
 
-    // Detect framework to determine the correct import alias
     spinner.text = 'Detecting framework...';
     const frameworkDetection = await detectFramework();
     
-    // Collect all components with their dependencies
     spinner.text = 'Fetching components and dependencies...';
     const allComponentsMap = new Map();
     const processedComponents = new Set<string>();
     
-    // Process each requested component
     for (const componentName of componentNames) {
       try {
         const componentsWithDeps = await getComponentWithDependencies(componentName);
         
-        // Add all components (including dependencies) to our map
         for (const component of componentsWithDeps) {
           if (!processedComponents.has(component.name)) {
             allComponentsMap.set(component.name, component);
@@ -70,7 +63,6 @@ export async function add(componentNames: string[]): Promise<void> {
       allComponents.find(c => c.name === name)
     ).filter((component): component is NonNullable<typeof component> => component !== undefined);
 
-    // Show user what will be installed
     spinner.stop();
     console.log(chalk.blue(`Installing ${componentNames.length} component${componentNames.length > 1 ? 's' : ''}:`));
     
@@ -78,7 +70,6 @@ export async function add(componentNames: string[]): Promise<void> {
       console.log(chalk.green(`   • ${component!.name} (requested)`));
     });
 
-    // Show dependencies if any
     const dependencies = allComponents.filter(c => !componentNames.includes(c.name));
     if (dependencies.length > 0) {
       console.log(chalk.blue('\nWith internal dependencies:'));
@@ -90,13 +81,11 @@ export async function add(componentNames: string[]): Promise<void> {
     console.log('');
     spinner.start(`Preparing components...`);
 
-    // Collect all files from all components
     const allComponentFiles: ComponentFileWithContent[] = [];
     for (const component of allComponents) {
       const files = await Promise.all(
         component.files.map(async (file: any) => {
           const content = await getComponentFile(file.path);
-          // Process content to use correct import alias based on framework
           const processedContent = processComponentContent(content, frameworkDetection.framework);
           return {
             ...file,
@@ -110,7 +99,6 @@ export async function add(componentNames: string[]): Promise<void> {
 
     spinner.text = `Checking existing files...`;
     
-    // Check for existing files
     const existingFiles = [];
     for (const file of allComponentFiles) {
       const targetPath = resolveComponentPath(file.path, config);
@@ -119,7 +107,6 @@ export async function add(componentNames: string[]): Promise<void> {
       }
     }
 
-    // If files exist, ask user for confirmation
     if (existingFiles.length > 0) {
       spinner.stop();
       console.log(chalk.yellow(`\nThe following files already exist:`));
@@ -151,7 +138,6 @@ export async function add(componentNames: string[]): Promise<void> {
       await writeComponentFile(targetPath, file.content);
     }
 
-    // Collect all dependencies from all components
     const allDeps: Record<string, string> = {};
     for (const component of allComponents) {
       Object.assign(allDeps, component.dependencies);
@@ -162,10 +148,8 @@ export async function add(componentNames: string[]): Promise<void> {
       spinner.text = `Checking dependencies...`;
       
       try {
-        // Get currently installed dependencies
         const installedDeps = await getInstalledDependencies();
         
-        // Filter out dependencies that are already installed and satisfy requirements
         const depsToInstall: Record<string, string> = {};
         const skippedDeps: string[] = [];
         const incompatibleDeps: string[] = [];
@@ -175,29 +159,24 @@ export async function add(componentNames: string[]): Promise<void> {
           
           if (installedVersion) {
             try {
-              // Clean version strings - remove 'v' prefix if present
               const cleanInstalledVersion = installedVersion.replace(/^v/, '');
-              const cleanRequiredVersion = requiredVersion.replace(/^[v^~]/, ''); // Remove ^, ~, v prefixes
+              const cleanRequiredVersion = requiredVersion.replace(/^[v^~]/, '');
               
-              // Special handling for React - newer major versions are usually compatible
               if (depName === 'react' || depName === 'react-dom') {
                 const installedMajor = semver.major(cleanInstalledVersion);
                 const requiredMajor = semver.major(cleanRequiredVersion);
                 
-                // If installed version is newer major version, assume compatibility
                 if (installedMajor >= requiredMajor) {
                   skippedDeps.push(`${depName}@${installedVersion} (newer version compatible with ${requiredVersion})`);
                   continue;
                 }
               }
               
-              // Check if installed version satisfies the requirement
               const satisfies = semver.satisfies(cleanInstalledVersion, requiredVersion);
               
               if (satisfies) {
                 skippedDeps.push(`${depName}@${installedVersion} (satisfies ${requiredVersion})`);
               } else {
-                // For other packages, check if it's a newer major version
                 const installedMajor = semver.major(cleanInstalledVersion);
                 const requiredMajor = semver.major(cleanRequiredVersion);
                 
@@ -218,13 +197,11 @@ export async function add(componentNames: string[]): Promise<void> {
           }
         }
         
-        // Install only missing or incompatible dependencies
         if (Object.keys(depsToInstall).length > 0) {
           spinner.text = `Installing missing dependencies...`;
           await installDependencies(depsToInstall);
         }
         
-        // Show information about dependency handling
         if (skippedDeps.length > 0) {
           console.log(chalk.green('\nDependencies already satisfied:'));
           skippedDeps.forEach(dep => {
@@ -270,7 +247,6 @@ export async function add(componentNames: string[]): Promise<void> {
     });
 
     console.log(chalk.blue('\nImport and use:'));
-    // Show import examples for each requested component
     const aliasPrefix = frameworkDetection.framework === 'react-router' ? '~' : '@';
     
     for (const componentName of componentNames) {
@@ -283,7 +259,6 @@ export async function add(componentNames: string[]): Promise<void> {
       }
     }
 
-    // Show variants and sizes for components that have them
     const componentsWithVariants = requestedComponents.filter(c => c!.variants && c!.variants.length > 0);
     if (componentsWithVariants.length > 0) {
       console.log(chalk.blue('\nAvailable variants:'));

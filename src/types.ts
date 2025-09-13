@@ -41,7 +41,6 @@ export interface Config {
   style: string;
   tsx: boolean;
   tailwind: {
-    config: string;
     css: string;
   };
   aliases: {
