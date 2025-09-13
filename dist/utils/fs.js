@@ -14,5 +14,5 @@ async function fileExists(filePath) {
 async function writeComponentFile(filePath, content) {
     const fullPath = path_1.default.join(process.cwd(), filePath);
     await fs_extra_1.default.ensureDir(path_1.default.dirname(fullPath));
-    await fs_extra_1.default.writeFile(fullPath, content, 'utf8');
+    await fs_extra_1.default.writeFile(fullPath, content, "utf8");
 }

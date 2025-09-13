@@ -1,32 +1,18 @@
-// Configuration utilities
-export { readConfig, writeConfig } from './config';
+export { readConfig, writeConfig } from "./config";
+export { getInstalledDependencies, installDependencies } from "./deps";
+export type { FrameworkDetection } from "./framework";
+export { detectFramework, isTypeScriptProject } from "./framework";
+export { fileExists, writeComponentFile } from "./fs";
+export { resolveComponentPath } from "./paths";
+export {
+	getCategories,
+	getComponent,
+	getComponentFile,
+	getComponentsByCategory,
+	getComponentWithDependencies,
+	getRegistry,
+	listComponents,
+} from "./registry";
 
-// File system utilities
-export { fileExists, writeComponentFile } from './fs';
-
-// Path utilities
-export { resolveComponentPath } from './paths';
-
-// Dependency management utilities
-export { getInstalledDependencies, installDependencies } from './deps';
-
-// Tailwind utilities
-export { addDesignTokensToCss, checkTailwindInstallation } from './tailwind';
-
-// Framework detection utilities
-export { detectFramework, isTypeScriptProject } from './framework';
-export type { FrameworkDetection } from './framework';
-
-// Rollback utilities
-export { rollbackInitChanges } from './rollback';
-
-// Registry utilities
-export { 
-  getRegistry, 
-  getComponent, 
-  getComponentFile, 
-  listComponents, 
-  getComponentsByCategory, 
-  getCategories, 
-  getComponentWithDependencies 
-} from './registry';
+export { rollbackInitChanges } from "./rollback";
+export { addDesignTokensToCss, checkTailwindInstallation } from "./tailwind";

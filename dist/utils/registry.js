@@ -7,15 +7,15 @@ exports.listComponents = listComponents;
 exports.getComponentsByCategory = getComponentsByCategory;
 exports.getCategories = getCategories;
 exports.getComponentWithDependencies = getComponentWithDependencies;
-const REGISTRY_URL = 'https://raw.githubusercontent.com/66HEX/nocta-ui/main/registry.json';
-const COMPONENTS_BASE_URL = 'https://raw.githubusercontent.com/66HEX/nocta-ui/main';
+const REGISTRY_URL = "https://raw.githubusercontent.com/66HEX/nocta-ui/main/registry.json";
+const COMPONENTS_BASE_URL = "https://raw.githubusercontent.com/66HEX/nocta-ui/main";
 async function getRegistry() {
     try {
         const response = await fetch(REGISTRY_URL);
         if (!response.ok) {
             throw new Error(`Failed to fetch registry: ${response.statusText}`);
         }
-        return await response.json();
+        return (await response.json());
     }
     catch (error) {
         throw new Error(`Failed to load registry: ${error}`);
@@ -51,7 +51,7 @@ async function getComponentsByCategory(category) {
     if (!category) {
         return components;
     }
-    return components.filter(component => component.category === category);
+    return components.filter((component) => component.category === category);
 }
 async function getCategories() {
     const registry = await getRegistry();
@@ -64,7 +64,8 @@ async function getComponentWithDependencies(name, visited = new Set()) {
     visited.add(name);
     const component = await getComponent(name);
     const result = [component];
-    if (component.internalDependencies && component.internalDependencies.length > 0) {
+    if (component.internalDependencies &&
+        component.internalDependencies.length > 0) {
         for (const depName of component.internalDependencies) {
             const depComponents = await getComponentWithDependencies(depName, visited);
             result.unshift(...depComponents);

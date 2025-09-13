@@ -75,38 +75,42 @@ async function addDesignTokensToCss(cssFilePath) {
 	--color-primary-white: var(--primary-white);
 }`;
     try {
-        let cssContent = '';
+        let cssContent = "";
         if (await fs_extra_1.default.pathExists(fullPath)) {
-            cssContent = await fs_extra_1.default.readFile(fullPath, 'utf8');
-            const hasRichTheme = cssContent.includes('--color-primary-muted') && cssContent.includes('--color-gradient-primary-start');
-            if (cssContent.includes('@theme') && hasRichTheme) {
+            cssContent = await fs_extra_1.default.readFile(fullPath, "utf8");
+            const hasRichTheme = cssContent.includes("--color-primary-muted") &&
+                cssContent.includes("--color-gradient-primary-start");
+            if (cssContent.includes("@theme") && hasRichTheme) {
                 return false;
             }
         }
-        const lines = cssContent.split('\n');
+        const lines = cssContent.split("\n");
         let lastImportIndex = -1;
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i].trim();
-            if (line.startsWith('@import'))
+            if (line.startsWith("@import"))
                 lastImportIndex = i;
-            else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//'))
+            else if (line &&
+                !line.startsWith("@") &&
+                !line.startsWith("/*") &&
+                !line.startsWith("//"))
                 break;
         }
         const hasImport = /@import\s+["']tailwindcss["'];?/i.test(cssContent);
         const snippet = hasImport
-            ? V4_SNIPPET.replace(/@import\s+["']tailwindcss["'];?\s*/i, '').trimStart()
+            ? V4_SNIPPET.replace(/@import\s+["']tailwindcss["'];?\s*/i, "").trimStart()
             : V4_SNIPPET;
         let newContent;
         if (lastImportIndex >= 0) {
             const beforeImports = lines.slice(0, lastImportIndex + 1);
             const afterImports = lines.slice(lastImportIndex + 1);
-            newContent = [...beforeImports, '', snippet, '', ...afterImports].join('\n');
+            newContent = [...beforeImports, "", snippet, "", ...afterImports].join("\n");
         }
         else {
             newContent = `${snippet}\n\n${cssContent}`;
         }
         await fs_extra_1.default.ensureDir(path_1.default.dirname(fullPath));
-        await fs_extra_1.default.writeFile(fullPath, newContent, 'utf8');
+        await fs_extra_1.default.writeFile(fullPath, newContent, "utf8");
         return true;
     }
     catch (error) {
@@ -115,12 +119,13 @@ async function addDesignTokensToCss(cssFilePath) {
 }
 async function checkTailwindInstallation() {
     try {
-        const packageJson = await fs_extra_1.default.readJson('package.json');
-        const tailwindVersion = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
+        const packageJson = await fs_extra_1.default.readJson("package.json");
+        const tailwindVersion = packageJson.dependencies?.tailwindcss ||
+            packageJson.devDependencies?.tailwindcss;
         if (!tailwindVersion) {
             return { installed: false };
         }
-        const nodeModulesPath = path_1.default.join(process.cwd(), 'node_modules', 'tailwindcss');
+        const nodeModulesPath = path_1.default.join(process.cwd(), "node_modules", "tailwindcss");
         const existsInNodeModules = await fs_extra_1.default.pathExists(nodeModulesPath);
         return {
             installed: existsInNodeModules,

@@ -8,10 +8,13 @@ exports.detectFramework = detectFramework;
 const fs_extra_1 = __importDefault(require("fs-extra"));
 async function isTypeScriptProject() {
     try {
-        const packageJson = await fs_extra_1.default.readJson('package.json');
-        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
-        const hasTypeScript = 'typescript' in dependencies || '@types/node' in dependencies;
-        const hasTsConfig = await fs_extra_1.default.pathExists('tsconfig.json');
+        const packageJson = await fs_extra_1.default.readJson("package.json");
+        const dependencies = {
+            ...packageJson.dependencies,
+            ...packageJson.devDependencies,
+        };
+        const hasTypeScript = "typescript" in dependencies || "@types/node" in dependencies;
+        const hasTsConfig = await fs_extra_1.default.pathExists("tsconfig.json");
         return hasTypeScript || hasTsConfig;
     }
     catch {
@@ -22,11 +25,11 @@ async function detectFramework() {
     try {
         let packageJson = {};
         try {
-            packageJson = await fs_extra_1.default.readJson('package.json');
+            packageJson = await fs_extra_1.default.readJson("package.json");
         }
         catch {
             return {
-                framework: 'unknown',
+                framework: "unknown",
                 details: {
                     hasConfig: false,
                     hasReactDependency: false,
@@ -35,47 +38,70 @@ async function detectFramework() {
                 },
             };
         }
-        const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
-        const hasReact = 'react' in dependencies;
-        // Next.js Detection (Enhanced)
-        const nextConfigFiles = ['next.config.js', 'next.config.mjs', 'next.config.ts', 'next.config.cjs'];
+        const dependencies = {
+            ...packageJson.dependencies,
+            ...packageJson.devDependencies,
+        };
+        const hasReact = "react" in dependencies;
+        const nextConfigFiles = [
+            "next.config.js",
+            "next.config.mjs",
+            "next.config.ts",
+            "next.config.cjs",
+        ];
         const foundNextConfigs = [];
         for (const config of nextConfigFiles) {
             if (await fs_extra_1.default.pathExists(config)) {
                 foundNextConfigs.push(config);
             }
         }
-        const hasNext = 'next' in dependencies;
+        const hasNext = "next" in dependencies;
         if (hasNext || foundNextConfigs.length > 0) {
-            let appStructure = 'unknown';
-            // Enhanced App Router detection - check multiple locations and file extensions
+            let appStructure = "unknown";
             const appRouterPaths = [
-                'app/layout.tsx', 'app/layout.ts', 'app/layout.jsx', 'app/layout.js',
-                'src/app/layout.tsx', 'src/app/layout.ts', 'src/app/layout.jsx', 'src/app/layout.js'
+                "app/layout.tsx",
+                "app/layout.ts",
+                "app/layout.jsx",
+                "app/layout.js",
+                "src/app/layout.tsx",
+                "src/app/layout.ts",
+                "src/app/layout.jsx",
+                "src/app/layout.js",
             ];
             for (const layoutPath of appRouterPaths) {
                 if (await fs_extra_1.default.pathExists(layoutPath)) {
-                    appStructure = 'app-router';
+                    appStructure = "app-router";
                     break;
                 }
             }
-            // Enhanced Pages Router detection - check multiple locations
-            if (appStructure === 'unknown') {
+            if (appStructure === "unknown") {
                 const pagesRouterPaths = [
-                    'pages/_app.tsx', 'pages/_app.ts', 'pages/_app.jsx', 'pages/_app.js',
-                    'pages/index.tsx', 'pages/index.ts', 'pages/index.jsx', 'pages/index.js',
-                    'src/pages/_app.tsx', 'src/pages/_app.ts', 'src/pages/_app.jsx', 'src/pages/_app.js',
-                    'src/pages/index.tsx', 'src/pages/index.ts', 'src/pages/index.jsx', 'src/pages/index.js'
+                    "pages/_app.tsx",
+                    "pages/_app.ts",
+                    "pages/_app.jsx",
+                    "pages/_app.js",
+                    "pages/index.tsx",
+                    "pages/index.ts",
+                    "pages/index.jsx",
+                    "pages/index.js",
+                    "src/pages/_app.tsx",
+                    "src/pages/_app.ts",
+                    "src/pages/_app.jsx",
+                    "src/pages/_app.js",
+                    "src/pages/index.tsx",
+                    "src/pages/index.ts",
+                    "src/pages/index.jsx",
+                    "src/pages/index.js",
                 ];
                 for (const pagePath of pagesRouterPaths) {
                     if (await fs_extra_1.default.pathExists(pagePath)) {
-                        appStructure = 'pages-router';
+                        appStructure = "pages-router";
                         break;
                     }
                 }
             }
             return {
-                framework: 'nextjs',
+                framework: "nextjs",
                 version: dependencies.next,
                 details: {
                     hasConfig: foundNextConfigs.length > 0,
@@ -86,25 +112,38 @@ async function detectFramework() {
                 },
             };
         }
-        // React Router 7 Framework Mode Detection (Enhanced)
-        const reactRouterConfigFiles = ['react-router.config.ts', 'react-router.config.js'];
+        const reactRouterConfigFiles = [
+            "react-router.config.ts",
+            "react-router.config.js",
+        ];
         const foundReactRouterConfigs = [];
         for (const config of reactRouterConfigFiles) {
             if (await fs_extra_1.default.pathExists(config)) {
                 foundReactRouterConfigs.push(config);
             }
         }
-        const hasReactRouter = 'react-router' in dependencies;
-        const hasReactRouterDev = '@react-router/dev' in dependencies;
-        const hasRemixRunReact = '@remix-run/react' in dependencies; // React Router 7 can use this
+        const hasReactRouter = "react-router" in dependencies;
+        const hasReactRouterDev = "@react-router/dev" in dependencies;
+        const hasRemixRunReact = "@remix-run/react" in dependencies;
         if ((hasReactRouter || hasReactRouterDev || hasRemixRunReact) && hasReact) {
             let isReactRouterFramework = false;
-            // Enhanced React Router 7 framework mode indicators
             const reactRouterIndicators = [
-                'app/routes.ts', 'app/routes.tsx', 'app/routes.js', 'app/routes.jsx',
-                'app/root.tsx', 'app/root.ts', 'app/root.jsx', 'app/root.js',
-                'app/entry.client.tsx', 'app/entry.client.ts', 'app/entry.client.jsx', 'app/entry.client.js',
-                'app/entry.server.tsx', 'app/entry.server.ts', 'app/entry.server.jsx', 'app/entry.server.js'
+                "app/routes.ts",
+                "app/routes.tsx",
+                "app/routes.js",
+                "app/routes.jsx",
+                "app/root.tsx",
+                "app/root.ts",
+                "app/root.jsx",
+                "app/root.js",
+                "app/entry.client.tsx",
+                "app/entry.client.ts",
+                "app/entry.client.jsx",
+                "app/entry.client.js",
+                "app/entry.server.tsx",
+                "app/entry.server.ts",
+                "app/entry.server.jsx",
+                "app/entry.server.js",
             ];
             for (const indicator of reactRouterIndicators) {
                 if (await fs_extra_1.default.pathExists(indicator)) {
@@ -112,18 +151,20 @@ async function detectFramework() {
                     break;
                 }
             }
-            // Strong indicators for React Router 7 framework mode
             if (hasReactRouterDev || foundReactRouterConfigs.length > 0) {
                 isReactRouterFramework = true;
             }
-            // Additional check: if we have @remix-run/react but no Remix config, it's likely React Router 7
-            if (hasRemixRunReact && !await fs_extra_1.default.pathExists('remix.config.js') && !await fs_extra_1.default.pathExists('remix.config.ts')) {
+            if (hasRemixRunReact &&
+                !(await fs_extra_1.default.pathExists("remix.config.js")) &&
+                !(await fs_extra_1.default.pathExists("remix.config.ts"))) {
                 isReactRouterFramework = true;
             }
             if (isReactRouterFramework) {
                 return {
-                    framework: 'react-router',
-                    version: dependencies['react-router'] || dependencies['@react-router/dev'] || dependencies['@remix-run/react'],
+                    framework: "react-router",
+                    version: dependencies["react-router"] ||
+                        dependencies["@react-router/dev"] ||
+                        dependencies["@remix-run/react"],
                     details: {
                         hasConfig: foundReactRouterConfigs.length > 0,
                         hasReactDependency: hasReact,
@@ -133,28 +174,40 @@ async function detectFramework() {
                 };
             }
         }
-        // Vite + React Detection (Enhanced)
-        const viteConfigFiles = ['vite.config.js', 'vite.config.ts', 'vite.config.mjs', 'vite.config.cjs'];
+        const viteConfigFiles = [
+            "vite.config.js",
+            "vite.config.ts",
+            "vite.config.mjs",
+            "vite.config.cjs",
+        ];
         const foundViteConfigs = [];
         for (const config of viteConfigFiles) {
             if (await fs_extra_1.default.pathExists(config)) {
                 foundViteConfigs.push(config);
             }
         }
-        const hasVite = 'vite' in dependencies;
-        const hasViteReactPlugin = '@vitejs/plugin-react' in dependencies || '@vitejs/plugin-react-swc' in dependencies;
+        const hasVite = "vite" in dependencies;
+        const hasViteReactPlugin = "@vitejs/plugin-react" in dependencies ||
+            "@vitejs/plugin-react-swc" in dependencies;
         if ((hasVite || foundViteConfigs.length > 0) && hasReact) {
             let isReactProject = false;
-            // Strong indicator: Vite React plugin
             if (hasViteReactPlugin) {
                 isReactProject = true;
             }
-            // Check for typical Vite + React project structure
             if (!isReactProject) {
                 const viteReactIndicators = [
-                    'src/App.tsx', 'src/App.jsx', 'src/App.ts', 'src/App.js',
-                    'src/main.tsx', 'src/main.jsx', 'src/main.ts', 'src/main.js',
-                    'src/index.tsx', 'src/index.jsx', 'src/index.ts', 'src/index.js'
+                    "src/App.tsx",
+                    "src/App.jsx",
+                    "src/App.ts",
+                    "src/App.js",
+                    "src/main.tsx",
+                    "src/main.jsx",
+                    "src/main.ts",
+                    "src/main.js",
+                    "src/index.tsx",
+                    "src/index.jsx",
+                    "src/index.ts",
+                    "src/index.js",
                 ];
                 for (const indicator of viteReactIndicators) {
                     if (await fs_extra_1.default.pathExists(indicator)) {
@@ -163,12 +216,14 @@ async function detectFramework() {
                     }
                 }
             }
-            // Additional validation: check if index.html has Vite-specific patterns AND React root
-            if (!isReactProject && await fs_extra_1.default.pathExists('index.html')) {
+            if (!isReactProject && (await fs_extra_1.default.pathExists("index.html"))) {
                 try {
-                    const htmlContent = await fs_extra_1.default.readFile('index.html', 'utf8');
-                    const hasReactRoot = htmlContent.includes('id="root"') || htmlContent.includes("id='root'");
-                    const hasViteScript = htmlContent.includes('/src/main.') || htmlContent.includes('/src/index.') || htmlContent.includes('type="module"');
+                    const htmlContent = await fs_extra_1.default.readFile("index.html", "utf8");
+                    const hasReactRoot = htmlContent.includes('id="root"') ||
+                        htmlContent.includes("id='root'");
+                    const hasViteScript = htmlContent.includes("/src/main.") ||
+                        htmlContent.includes("/src/index.") ||
+                        htmlContent.includes('type="module"');
                     if (hasReactRoot && hasViteScript) {
                         isReactProject = true;
                     }
@@ -179,7 +234,7 @@ async function detectFramework() {
             }
             if (isReactProject) {
                 return {
-                    framework: 'vite-react',
+                    framework: "vite-react",
                     version: dependencies.vite,
                     details: {
                         hasConfig: foundViteConfigs.length > 0,
@@ -190,12 +245,14 @@ async function detectFramework() {
                 };
             }
         }
-        // CRA or custom
         if (hasReact) {
-            const craIndicators = ['react-scripts' in dependencies, await fs_extra_1.default.pathExists('public/index.html')];
+            const craIndicators = [
+                "react-scripts" in dependencies,
+                await fs_extra_1.default.pathExists("public/index.html"),
+            ];
             if (craIndicators.some(Boolean)) {
                 return {
-                    framework: 'unknown',
+                    framework: "unknown",
                     details: {
                         hasConfig: false,
                         hasReactDependency: true,
@@ -206,7 +263,7 @@ async function detectFramework() {
             }
         }
         return {
-            framework: 'unknown',
+            framework: "unknown",
             details: {
                 hasConfig: false,
                 hasReactDependency: hasReact,
@@ -217,7 +274,7 @@ async function detectFramework() {
     }
     catch {
         return {
-            framework: 'unknown',
+            framework: "unknown",
             details: {
                 hasConfig: false,
                 hasReactDependency: false,

@@ -1,4 +1,4 @@
-import { Registry, Component } from '../types';
+import type { Component, Registry } from "../types";
 export declare function getRegistry(): Promise<Registry>;
 export declare function getComponent(name: string): Promise<Component>;
 export declare function getComponentFile(filePath: string): Promise<string>;

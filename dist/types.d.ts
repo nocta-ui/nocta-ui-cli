@@ -18,7 +18,6 @@ export interface Component {
     props?: Record<string, string[]>;
     variants?: string[];
     sizes?: string[];
-    features: string[];
 }
 export interface Registry {
     name: string;
@@ -30,7 +29,6 @@ export interface Registry {
         description: string;
         components: string[];
     }>;
-    features: string[];
     requirements: Record<string, string>;
 }
 export interface Config {

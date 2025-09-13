@@ -1,10 +1,12 @@
-import fs from 'fs-extra';
-import path from 'path';
+import fs from "fs-extra";
+import path from "path";
 
-export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean> {
-  const fullPath = path.join(process.cwd(), cssFilePath);
+export async function addDesignTokensToCss(
+	cssFilePath: string,
+): Promise<boolean> {
+	const fullPath = path.join(process.cwd(), cssFilePath);
 
-  const V4_SNIPPET = `@import "tailwindcss";
+	const V4_SNIPPET = `@import "tailwindcss";
 
 :root {
 	--color-background: oklch(0.97 0 0);
@@ -70,64 +72,85 @@ export async function addDesignTokensToCss(cssFilePath: string): Promise<boolean
 	--color-primary-white: var(--primary-white);
 }`;
 
-  try {
-    let cssContent = '';
-    if (await fs.pathExists(fullPath)) {
-      cssContent = await fs.readFile(fullPath, 'utf8');
-      const hasRichTheme = cssContent.includes('--color-primary-muted') && cssContent.includes('--color-gradient-primary-start');
-      if (cssContent.includes('@theme') && hasRichTheme) {
-        return false;
-      }
-    }
+	try {
+		let cssContent = "";
+		if (await fs.pathExists(fullPath)) {
+			cssContent = await fs.readFile(fullPath, "utf8");
+			const hasRichTheme =
+				cssContent.includes("--color-primary-muted") &&
+				cssContent.includes("--color-gradient-primary-start");
+			if (cssContent.includes("@theme") && hasRichTheme) {
+				return false;
+			}
+		}
 
-    const lines = cssContent.split('\n');
-    let lastImportIndex = -1;
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.startsWith('@import')) lastImportIndex = i;
-      else if (line && !line.startsWith('@') && !line.startsWith('/*') && !line.startsWith('//')) break;
-    }
+		const lines = cssContent.split("\n");
+		let lastImportIndex = -1;
+		for (let i = 0; i < lines.length; i++) {
+			const line = lines[i].trim();
+			if (line.startsWith("@import")) lastImportIndex = i;
+			else if (
+				line &&
+				!line.startsWith("@") &&
+				!line.startsWith("/*") &&
+				!line.startsWith("//")
+			)
+				break;
+		}
 
-    const hasImport = /@import\s+["']tailwindcss["'];?/i.test(cssContent);
-    const snippet = hasImport
-      ? V4_SNIPPET.replace(/@import\s+["']tailwindcss["'];?\s*/i, '').trimStart()
-      : V4_SNIPPET;
+		const hasImport = /@import\s+["']tailwindcss["'];?/i.test(cssContent);
+		const snippet = hasImport
+			? V4_SNIPPET.replace(
+					/@import\s+["']tailwindcss["'];?\s*/i,
+					"",
+				).trimStart()
+			: V4_SNIPPET;
 
-    let newContent: string;
-    if (lastImportIndex >= 0) {
-      const beforeImports = lines.slice(0, lastImportIndex + 1);
-      const afterImports = lines.slice(lastImportIndex + 1);
-      newContent = [...beforeImports, '', snippet, '', ...afterImports].join('\n');
-    } else {
-      newContent = `${snippet}\n\n${cssContent}`;
-    }
+		let newContent: string;
+		if (lastImportIndex >= 0) {
+			const beforeImports = lines.slice(0, lastImportIndex + 1);
+			const afterImports = lines.slice(lastImportIndex + 1);
+			newContent = [...beforeImports, "", snippet, "", ...afterImports].join(
+				"\n",
+			);
+		} else {
+			newContent = `${snippet}\n\n${cssContent}`;
+		}
 
-    await fs.ensureDir(path.dirname(fullPath));
-    await fs.writeFile(fullPath, newContent, 'utf8');
-    return true;
-  } catch (error) {
-    throw new Error(`Failed to add design tokens to CSS file: ${error}`);
-  }
+		await fs.ensureDir(path.dirname(fullPath));
+		await fs.writeFile(fullPath, newContent, "utf8");
+		return true;
+	} catch (error) {
+		throw new Error(`Failed to add design tokens to CSS file: ${error}`);
+	}
 }
 
-export async function checkTailwindInstallation(): Promise<{ installed: boolean; version?: string }> {
-  try {
-    const packageJson = await fs.readJson('package.json');
-    const tailwindVersion = packageJson.dependencies?.tailwindcss || packageJson.devDependencies?.tailwindcss;
+export async function checkTailwindInstallation(): Promise<{
+	installed: boolean;
+	version?: string;
+}> {
+	try {
+		const packageJson = await fs.readJson("package.json");
+		const tailwindVersion =
+			packageJson.dependencies?.tailwindcss ||
+			packageJson.devDependencies?.tailwindcss;
 
-    if (!tailwindVersion) {
-      return { installed: false };
-    }
+		if (!tailwindVersion) {
+			return { installed: false };
+		}
 
-    const nodeModulesPath = path.join(process.cwd(), 'node_modules', 'tailwindcss');
-    const existsInNodeModules = await fs.pathExists(nodeModulesPath);
+		const nodeModulesPath = path.join(
+			process.cwd(),
+			"node_modules",
+			"tailwindcss",
+		);
+		const existsInNodeModules = await fs.pathExists(nodeModulesPath);
 
-    return {
-      installed: existsInNodeModules,
-      version: tailwindVersion,
-    };
-  } catch {
-    return { installed: false };
-  }
+		return {
+			installed: existsInNodeModules,
+			version: tailwindVersion,
+		};
+	} catch {
+		return { installed: false };
+	}
 }
-

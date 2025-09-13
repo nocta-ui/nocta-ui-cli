@@ -7,5 +7,5 @@ exports.resolveComponentPath = resolveComponentPath;
 const path_1 = __importDefault(require("path"));
 function resolveComponentPath(componentFilePath, config) {
     const fileName = path_1.default.basename(componentFilePath);
-    return path_1.default.join(config.aliases.components, 'ui', fileName);
+    return path_1.default.join(config.aliases.components, "ui", fileName);
 }

@@ -8,7 +8,7 @@ exports.writeConfig = writeConfig;
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = __importDefault(require("path"));
 async function readConfig() {
-    const configPath = path_1.default.join(process.cwd(), 'nocta.config.json');
+    const configPath = path_1.default.join(process.cwd(), "nocta.config.json");
     if (!(await fs_extra_1.default.pathExists(configPath))) {
         return null;
     }
@@ -20,6 +20,6 @@ async function readConfig() {
     }
 }
 async function writeConfig(config) {
-    const configPath = path_1.default.join(process.cwd(), 'nocta.config.json');
+    const configPath = path_1.default.join(process.cwd(), "nocta.config.json");
     await fs_extra_1.default.writeJson(configPath, config, { spaces: 2 });
 }
