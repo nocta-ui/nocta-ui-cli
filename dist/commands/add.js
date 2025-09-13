@@ -58,9 +58,14 @@ async function add(componentNames) {
         }
         const allComponents = Array.from(allComponentsMap.values());
         const requestedComponents = componentNames
-            .map((name) => allComponents.find((c) => c.name.toLowerCase() === name.toLowerCase()))
+            .map((name) => {
+            return allComponents.find((c) => {
+                const registryKey = c.files[0].path.split('/').pop()?.replace('.tsx', '') || '';
+                return registryKey.toLowerCase() === name.toLowerCase() ||
+                    c.name.toLowerCase() === name.toLowerCase();
+            });
+        })
             .filter((component) => component !== undefined);
-        // Get actual component names (with correct case) for filtering
         const requestedComponentNames = requestedComponents.map(c => c.name);
         const dependencies = allComponents.filter((c) => !requestedComponentNames.includes(c.name));
         spinner.stop();
@@ -225,7 +230,11 @@ async function add(componentNames) {
         console.log(chalk_1.default.blue("\nImport and use:"));
         const aliasPrefix = frameworkDetection.framework === "react-router" ? "~" : "@";
         for (const componentName of componentNames) {
-            const component = allComponents.find((c) => c.name.toLowerCase() === componentName.toLowerCase());
+            const component = allComponents.find((c) => {
+                const registryKey = c.files[0].path.split('/').pop()?.replace('.tsx', '') || '';
+                return registryKey.toLowerCase() === componentName.toLowerCase() ||
+                    c.name.toLowerCase() === componentName.toLowerCase();
+            });
             if (component) {
                 const firstFile = component.files[0];
                 const componentPath = firstFile.path
