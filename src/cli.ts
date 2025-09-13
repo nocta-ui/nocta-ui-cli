@@ -5,7 +5,6 @@ import { add } from "./commands/add";
 import { init } from "./commands/init";
 import { list } from "./commands/list";
 
-// Import package.json to get the version dynamically
 const packageJson = require("../package.json");
 
 const program = new Command();

@@ -9,7 +9,6 @@ const commander_1 = require("commander");
 const add_1 = require("./commands/add");
 const init_1 = require("./commands/init");
 const list_1 = require("./commands/list");
-// Import package.json to get the version dynamically
 const packageJson = require("../package.json");
 const program = new commander_1.Command();
 program
