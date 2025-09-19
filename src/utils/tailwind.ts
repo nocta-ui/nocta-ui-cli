@@ -17,7 +17,6 @@ export async function addDesignTokensToCss(
 	--color-foreground-subtle: oklch(0.708 0.0031 229.76);
 	--color-border: oklch(0.205 0.0031 229.76 / 0.1);
 	--color-border-muted: oklch(0.942 0.0031 229.76);
-	--color-border-subtle: oklch(0.708 0.0031 229.76);
 	--color-ring: oklch(0.205 0.0031 229.76);
 	--color-ring-offset: oklch(0.97 0.0031 229.76);
 	--color-primary: oklch(0.205 0.0031 229.76);
@@ -36,7 +35,6 @@ export async function addDesignTokensToCss(
 	--color-foreground-subtle: oklch(0.556 0.0031 229.76);
 	--color-border: oklch(0.97 0.0031 229.76 / 0.1);
 	--color-border-muted: oklch(0.269 0.0031 229.76);
-	--color-border-subtle: oklch(0.371 0.0031 229.76);
 	--color-ring: oklch(0.97 0.0031 229.76);
 	--color-ring-offset: oklch(0.205 0.0031 229.76);
 	--color-primary: oklch(0.97 0.0031 229.76);
@@ -57,7 +55,6 @@ export async function addDesignTokensToCss(
 	--color-primary-muted: var(--primary-muted);
 	--color-border: var(--border);
 	--color-border-muted: var(--border-muted);
-	--color-border-subtle: var(--border-subtle);
 	--color-ring: var(--ring);
 	--color-ring-offset: var(--ring-offset);
 	--color-primary-foreground: var(--primary-foreground);
