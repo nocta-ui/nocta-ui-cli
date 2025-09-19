@@ -9,47 +9,42 @@ export async function addDesignTokensToCss(
 	const V4_SNIPPET = `@import "tailwindcss";
 
 :root {
-	--color-background: oklch(0.99 0 0);
-	--color-background-muted: oklch(0.952 0 0);
-	--color-background-elevated: oklch(0.87 0 0);
-	--color-foreground: oklch(0.205 0 0);
-	--color-foreground-muted: oklch(0.371 0 0);
-	--color-foreground-subtle: oklch(0.708 0 0);
-	--color-border: oklch(0.205 0 0);
-	--color-border-muted: oklch(0.952 0 0);
-	--color-border-subtle: oklch(0.708 0 0);
-	--color-ring: oklch(0.205 0 0);
-	--color-ring-offset: oklch(0.97 0 0);
-	--color-primary: oklch(0.205 0 0);
-	--color-primary-foreground: oklch(0.97 0 0);
-	--color-primary-muted: oklch(0.371 0 0);
-	--color-overlay: oklch(0.97 0 0);
-	--color-gradient-primary-start: oklch(0.391 0 0);
-	--color-gradient-primary-end: oklch(0.205 0 0);
-	--color-primary-white: oklch(0.97 0 0);
+	--color-background: oklch(0.997 0.0031 229.76);
+	--color-background-muted: oklch(0.972 0.0031 229.76);
+	--color-background-elevated: oklch(0.92 0.0031 229.76);
+	--color-foreground: oklch(0.205 0.0031 229.76);
+	--color-foreground-muted: oklch(0.371 0.0031 229.76);
+	--color-foreground-subtle: oklch(0.708 0.0031 229.76);
+	--color-border: oklch(0.205 0.0031 229.76 / 0.1);
+	--color-border-muted: oklch(0.942 0.0031 229.76);
+	--color-border-subtle: oklch(0.708 0.0031 229.76);
+	--color-ring: oklch(0.205 0.0031 229.76);
+	--color-ring-offset: oklch(0.97 0.0031 229.76);
+	--color-primary: oklch(0.205 0.0031 229.76);
+	--color-primary-foreground: oklch(0.97 0.0031 229.76);
+	--color-primary-muted: oklch(0.371 0.0031 229.76);
+	--color-overlay: oklch(0.97 0.0031 229.76);
 	--radius-base: 0.125rem;
 }
 
 .dark {
-	--color-background: oklch(0.205 0 0);
-	--color-background-muted: oklch(0.259 0 0);
-	--color-background-elevated: oklch(0.371 0 0);
-	--color-foreground: oklch(0.97 0 0);
-	--color-foreground-muted: oklch(0.87 0 0);
-	--color-foreground-subtle: oklch(0.556 0 0);
-	--color-border: oklch(0.97 0 0);
-	--color-border-muted: oklch(0.259 0 0);
-	--color-border-subtle: oklch(0.371 0 0);
-	--color-ring: oklch(0.97 0 0);
-	--color-ring-offset: oklch(0.205 0 0);
-	--color-primary: oklch(0.97 0 0);
-	--color-primary-foreground: oklch(0.205 0 0);
-	--color-primary-muted: oklch(0.87 0 0);
-	--color-overlay: oklch(0.145 0 0);
-	--color-gradient-primary-start: oklch(0.391 0 0);
-	--color-gradient-primary-end: oklch(0.2768 0 0);
-	--color-primary-white: oklch(0.952 0 0);
-  	--radius-base: 0.125rem;}
+	--color-background: oklch(0.205 0.0031 229.76);
+	--color-background-muted: oklch(0.249 0.0031 229.76);
+	--color-background-elevated: oklch(0.351 0.0031 229.76);
+	--color-foreground: oklch(0.97 0.0031 229.76);
+	--color-foreground-muted: oklch(0.87 0.0031 229.76);
+	--color-foreground-subtle: oklch(0.556 0.0031 229.76);
+	--color-border: oklch(0.97 0.0031 229.76 / 0.1);
+	--color-border-muted: oklch(0.269 0.0031 229.76);
+	--color-border-subtle: oklch(0.371 0.0031 229.76);
+	--color-ring: oklch(0.97 0.0031 229.76);
+	--color-ring-offset: oklch(0.205 0.0031 229.76);
+	--color-primary: oklch(0.97 0.0031 229.76);
+	--color-primary-foreground: oklch(0.205 0.0031 229.76);
+	--color-primary-muted: oklch(0.87 0.0031 229.76);
+	--color-overlay: oklch(0.145 0.0031 229.76);
+	--radius-base: 0.125rem;
+}
 
 @theme {
 	--color-background: var(--background);
@@ -66,10 +61,7 @@ export async function addDesignTokensToCss(
 	--color-ring: var(--ring);
 	--color-ring-offset: var(--ring-offset);
 	--color-primary-foreground: var(--primary-foreground);
-	--color-gradient-primary-start: var(--gradient-primary-start);
-	--color-gradient-primary-end: var(--gradient-primary-end);
 	--color-overlay: var(--overlay);
-	--color-primary-white: var(--primary-white);
 	--radius-sm: calc(var(--radius) * 0.5);
 	--radius-xs: calc(var(--radius-base) * 1);
 	--radius-sm: calc(var(--radius-base) * 2);
