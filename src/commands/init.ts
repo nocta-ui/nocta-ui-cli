@@ -8,6 +8,7 @@ import {
 	fileExists,
 	installDependencies,
 	readConfig,
+	resolveComponentPath,
 	rollbackInitChanges,
 	writeComponentFile,
 	writeConfig,
@@ -190,7 +191,7 @@ export async function init(): Promise<void> {
 			"tailwind-merge": "^3.3.1",
 			"class-variance-authority": "^0.7.1",
 			"@ariakit/react": "^0.4.18",
-			"@radix-ui/react-icons": "^1.3.2"
+			"@radix-ui/react-icons": "^1.3.2",
 		};
 
 		try {
@@ -224,6 +225,40 @@ export function cn(...inputs: ClassValue[]) {
 		} else {
 			await writeComponentFile(utilsPath, utilsContent);
 			utilsCreated = true;
+		}
+
+		spinner.text = "Creating base icons component...";
+		const iconsContent = `import * as RadixIcons from "@radix-ui/react-icons";
+
+export const Icons = {
+	ChevronDown: RadixIcons.ChevronDownIcon,
+	ChevronLeft: RadixIcons.ChevronLeftIcon,
+	ChevronRight: RadixIcons.ChevronRightIcon,
+	Check: RadixIcons.CheckIcon,
+	CaretSort: RadixIcons.CaretSortIcon,
+	FileUpload: RadixIcons.UploadIcon,
+	User: RadixIcons.PersonIcon,
+	Info: RadixIcons.InfoCircledIcon,
+	Warning: RadixIcons.ExclamationTriangleIcon,
+	Success: RadixIcons.CheckCircledIcon,
+	X: RadixIcons.Cross2Icon,
+	SendMessage: RadixIcons.PaperPlaneIcon,
+};
+`;
+
+		const iconsPath = resolveComponentPath("components/icons.ts", config);
+		const iconsExist = await fileExists(iconsPath);
+		let iconsCreated = false;
+
+		if (iconsExist) {
+			spinner.stop();
+			console.log(
+				chalk.yellow(`${iconsPath} already exists - skipping creation`),
+			);
+			spinner.start();
+		} else {
+			await writeComponentFile(iconsPath, iconsContent);
+			iconsCreated = true;
 		}
 
 		spinner.text = "Adding semantic color variables...";
@@ -266,6 +301,12 @@ export function cn(...inputs: ClassValue[]) {
 			console.log(chalk.green("\nUtility functions created:"));
 			console.log(chalk.gray(`   ${utilsPath}`));
 			console.log(chalk.gray(`   • cn() function for className merging`));
+		}
+
+		if (iconsCreated) {
+			console.log(chalk.green("\nIcons component created:"));
+			console.log(chalk.gray(`   ${iconsPath}`));
+			console.log(chalk.gray("   • Base Radix Icons mapping"));
 		}
 
 		if (tokensAdded) {

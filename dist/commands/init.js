@@ -146,6 +146,7 @@ async function init() {
             "tailwind-merge": "^3.3.1",
             "class-variance-authority": "^0.7.1",
             "@ariakit/react": "^0.4.18",
+            "@radix-ui/react-icons": "^1.3.2",
         };
         try {
             await (0, utils_1.installDependencies)(requiredDependencies);
@@ -174,6 +175,36 @@ export function cn(...inputs: ClassValue[]) {
             await (0, utils_1.writeComponentFile)(utilsPath, utilsContent);
             utilsCreated = true;
         }
+        spinner.text = "Creating base icons component...";
+        const iconsContent = `import * as RadixIcons from "@radix-ui/react-icons";
+
+export const Icons = {
+	ChevronDown: RadixIcons.ChevronDownIcon,
+	ChevronLeft: RadixIcons.ChevronLeftIcon,
+	ChevronRight: RadixIcons.ChevronRightIcon,
+	Check: RadixIcons.CheckIcon,
+	CaretSort: RadixIcons.CaretSortIcon,
+	FileUpload: RadixIcons.UploadIcon,
+	User: RadixIcons.PersonIcon,
+	Info: RadixIcons.InfoCircledIcon,
+	Warning: RadixIcons.ExclamationTriangleIcon,
+	Success: RadixIcons.CheckCircledIcon,
+	X: RadixIcons.Cross2Icon,
+	SendMessage: RadixIcons.PaperPlaneIcon,
+};
+`;
+        const iconsPath = (0, utils_1.resolveComponentPath)("components/icons.ts", config);
+        const iconsExist = await (0, utils_1.fileExists)(iconsPath);
+        let iconsCreated = false;
+        if (iconsExist) {
+            spinner.stop();
+            console.log(chalk_1.default.yellow(`${iconsPath} already exists - skipping creation`));
+            spinner.start();
+        }
+        else {
+            await (0, utils_1.writeComponentFile)(iconsPath, iconsContent);
+            iconsCreated = true;
+        }
         spinner.text = "Adding semantic color variables...";
         let tokensAdded = false;
         let tokensLocation = "";
@@ -200,6 +231,11 @@ export function cn(...inputs: ClassValue[]) {
             console.log(chalk_1.default.green("\nUtility functions created:"));
             console.log(chalk_1.default.gray(`   ${utilsPath}`));
             console.log(chalk_1.default.gray(`   • cn() function for className merging`));
+        }
+        if (iconsCreated) {
+            console.log(chalk_1.default.green("\nIcons component created:"));
+            console.log(chalk_1.default.gray(`   ${iconsPath}`));
+            console.log(chalk_1.default.gray("   • Base Radix Icons mapping"));
         }
         if (tokensAdded) {
             console.log(chalk_1.default.green("\nColor variables added:"));

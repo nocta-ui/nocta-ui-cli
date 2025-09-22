@@ -21,13 +21,13 @@ function processComponentContent(content: string, framework: string): string {
 
 	processedContent = processedContent.replace(
 		/^(\s*(?:import|export).*?from\s+)(['"])\.\.\/([^'"]+)\2/gm,
-		"$1$2./$3$2"
+		"$1$2./$3$2",
 	);
 
 	if (framework === "react-router") {
 		processedContent = processedContent.replace(
 			/^(\s*(?:import|export).*?from\s+)(['"])@\//gm,
-			"$1$2~/"
+			"$1$2~/",
 		);
 	}
 
@@ -92,9 +92,12 @@ export async function add(componentNames: string[]): Promise<void> {
 		const requestedComponents = componentNames
 			.map((name) => {
 				return allComponents.find((c) => {
-					const registryKey = c.files[0].path.split('/').pop()?.replace('.tsx', '') || '';
-					return registryKey.toLowerCase() === name.toLowerCase() || 
-						   c.name.toLowerCase() === name.toLowerCase();
+					const registryKey =
+						c.files[0].path.split("/").pop()?.replace(".tsx", "") || "";
+					return (
+						registryKey.toLowerCase() === name.toLowerCase() ||
+						c.name.toLowerCase() === name.toLowerCase()
+					);
 				});
 			})
 			.filter(
@@ -102,7 +105,7 @@ export async function add(componentNames: string[]): Promise<void> {
 					component !== undefined,
 			);
 
-		const requestedComponentNames = requestedComponents.map(c => c!.name);
+		const requestedComponentNames = requestedComponents.map((c) => c!.name);
 		const dependencies = allComponents.filter(
 			(c) => !requestedComponentNames.includes(c.name),
 		);
@@ -329,9 +332,12 @@ export async function add(componentNames: string[]): Promise<void> {
 
 		for (const componentName of componentNames) {
 			const component = allComponents.find((c) => {
-				const registryKey = c.files[0].path.split('/').pop()?.replace('.tsx', '') || '';
-				return registryKey.toLowerCase() === componentName.toLowerCase() || 
-					   c.name.toLowerCase() === componentName.toLowerCase();
+				const registryKey =
+					c.files[0].path.split("/").pop()?.replace(".tsx", "") || "";
+				return (
+					registryKey.toLowerCase() === componentName.toLowerCase() ||
+					c.name.toLowerCase() === componentName.toLowerCase()
+				);
 			});
 			if (component) {
 				const firstFile = component.files[0];

@@ -60,13 +60,13 @@ async function add(componentNames) {
         const requestedComponents = componentNames
             .map((name) => {
             return allComponents.find((c) => {
-                const registryKey = c.files[0].path.split('/').pop()?.replace('.tsx', '') || '';
-                return registryKey.toLowerCase() === name.toLowerCase() ||
-                    c.name.toLowerCase() === name.toLowerCase();
+                const registryKey = c.files[0].path.split("/").pop()?.replace(".tsx", "") || "";
+                return (registryKey.toLowerCase() === name.toLowerCase() ||
+                    c.name.toLowerCase() === name.toLowerCase());
             });
         })
             .filter((component) => component !== undefined);
-        const requestedComponentNames = requestedComponents.map(c => c.name);
+        const requestedComponentNames = requestedComponents.map((c) => c.name);
         const dependencies = allComponents.filter((c) => !requestedComponentNames.includes(c.name));
         spinner.stop();
         console.log(chalk_1.default.blue(`Installing ${componentNames.length} component${componentNames.length > 1 ? "s" : ""}:`));
@@ -231,9 +231,9 @@ async function add(componentNames) {
         const aliasPrefix = frameworkDetection.framework === "react-router" ? "~" : "@";
         for (const componentName of componentNames) {
             const component = allComponents.find((c) => {
-                const registryKey = c.files[0].path.split('/').pop()?.replace('.tsx', '') || '';
-                return registryKey.toLowerCase() === componentName.toLowerCase() ||
-                    c.name.toLowerCase() === componentName.toLowerCase();
+                const registryKey = c.files[0].path.split("/").pop()?.replace(".tsx", "") || "";
+                return (registryKey.toLowerCase() === componentName.toLowerCase() ||
+                    c.name.toLowerCase() === componentName.toLowerCase());
             });
             if (component) {
                 const firstFile = component.files[0];

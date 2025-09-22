@@ -9,8 +9,6 @@ const path_1 = __importDefault(require("path"));
 async function rollbackInitChanges() {
     const filesToCheck = [
         "nocta.config.json",
-        "tailwind.config.js",
-        "tailwind.config.ts",
         "lib/utils.ts",
         "src/lib/utils.ts",
     ];

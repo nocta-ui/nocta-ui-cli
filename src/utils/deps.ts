@@ -64,12 +64,16 @@ export async function installDependencies(
 		packageManager = "pnpm";
 	}
 
+	const depsWithVersions = deps.map(
+		(depName) => `${depName}@${dependencies[depName]}`,
+	);
+
 	const installCmd =
 		packageManager === "yarn"
-			? `yarn add ${deps.join(" ")}`
+			? `yarn add ${depsWithVersions.join(" ")}`
 			: packageManager === "pnpm"
-				? `pnpm add ${deps.join(" ")}`
-				: `npm install ${deps.join(" ")}`;
+				? `pnpm add ${depsWithVersions.join(" ")}`
+				: `npm install ${depsWithVersions.join(" ")}`;
 
 	console.log(`Installing dependencies with ${packageManager}...`);
 	execSync(installCmd, { stdio: "inherit" });
