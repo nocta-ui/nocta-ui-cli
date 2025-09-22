@@ -26,6 +26,9 @@ async function addDesignTokensToCss(cssFilePath) {
 	--color-primary-foreground: oklch(0.97 0.0031 229.76);
 	--color-primary-muted: oklch(0.371 0.0031 229.76);
 	--color-overlay: oklch(0.97 0.0031 229.76);
+	--color-error: oklch(0.65 0.17 25);
+	--color-warning: oklch(0.82 0.15 75);
+	--color-success: oklch(0.72 0.15 150);
 	--radius-base: 0.125rem;
 }
 
@@ -44,6 +47,9 @@ async function addDesignTokensToCss(cssFilePath) {
 	--color-primary-foreground: oklch(0.205 0.0031 229.76);
 	--color-primary-muted: oklch(0.87 0.0031 229.76);
 	--color-overlay: oklch(0.145 0.0031 229.76);
+	--color-error: oklch(0.58 0.19 25);
+	--color-warning: oklch(0.74 0.15 75);
+	--color-success: oklch(0.64 0.15 150);
 	--radius-base: 0.125rem;
 }
 
@@ -62,6 +68,9 @@ async function addDesignTokensToCss(cssFilePath) {
 	--color-ring-offset: var(--ring-offset);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-overlay: var(--overlay);
+	--color-error: var(--error);
+	--color-warning: var(--warning);
+	--color-success: var(--success);
 	--radius-xs: calc(var(--radius-base) * 1);
 	--radius-sm: calc(var(--radius-base) * 2);
 	--radius-md: calc(var(--radius-base) * 3);
