@@ -1,6 +1,6 @@
 {
 	"name": "nocta-ui",
-	"version": "2.6.1",
+	"version": "2.6.2",
 	"description": "CLI for Nocta UI Components Library",
 	"main": "dist/cli.js",
 	"bin": {
