@@ -16,6 +16,7 @@ import {
 
 export async function init(): Promise<void> {
 	const spinner = ora("Initializing nocta-ui...").start();
+	const createdFiles: string[] = [];
 
 	try {
 		const existingConfig = await readConfig();
@@ -184,6 +185,7 @@ export async function init(): Promise<void> {
 		}
 
 		await writeConfig(config);
+		createdFiles.push("nocta.config.json");
 
 		spinner.text = "Installing required dependencies...";
 		const requiredDependencies = {
@@ -224,6 +226,7 @@ export function cn(...inputs: ClassValue[]) {
 			spinner.start();
 		} else {
 			await writeComponentFile(utilsPath, utilsContent);
+			createdFiles.push(utilsPath);
 			utilsCreated = true;
 		}
 
@@ -258,6 +261,7 @@ export const Icons = {
 			spinner.start();
 		} else {
 			await writeComponentFile(iconsPath, iconsContent);
+			createdFiles.push(iconsPath);
 			iconsCreated = true;
 		}
 
@@ -340,7 +344,7 @@ export const Icons = {
 		spinner.fail("Failed to initialize nocta-ui");
 
 		try {
-			await rollbackInitChanges();
+			await rollbackInitChanges(createdFiles);
 			console.log(chalk.yellow("Rolled back partial changes"));
 		} catch (rollbackError) {
 			console.log(

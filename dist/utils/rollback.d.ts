@@ -1,1 +1,1 @@
-export declare function rollbackInitChanges(): Promise<void>;
+export declare function rollbackInitChanges(paths?: string[]): Promise<void>;

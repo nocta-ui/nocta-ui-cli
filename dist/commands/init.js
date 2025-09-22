@@ -9,6 +9,7 @@ const ora_1 = __importDefault(require("ora"));
 const utils_1 = require("../utils");
 async function init() {
     const spinner = (0, ora_1.default)("Initializing nocta-ui...").start();
+    const createdFiles = [];
     try {
         const existingConfig = await (0, utils_1.readConfig)();
         if (existingConfig) {
@@ -140,6 +141,7 @@ async function init() {
             throw new Error("Unsupported framework configuration");
         }
         await (0, utils_1.writeConfig)(config);
+        createdFiles.push("nocta.config.json");
         spinner.text = "Installing required dependencies...";
         const requiredDependencies = {
             clsx: "^2.1.1",
@@ -173,6 +175,7 @@ export function cn(...inputs: ClassValue[]) {
         }
         else {
             await (0, utils_1.writeComponentFile)(utilsPath, utilsContent);
+            createdFiles.push(utilsPath);
             utilsCreated = true;
         }
         spinner.text = "Creating base icons component...";
@@ -203,6 +206,7 @@ export const Icons = {
         }
         else {
             await (0, utils_1.writeComponentFile)(iconsPath, iconsContent);
+            createdFiles.push(iconsPath);
             iconsCreated = true;
         }
         spinner.text = "Adding semantic color variables...";
@@ -255,7 +259,7 @@ export const Icons = {
     catch (error) {
         spinner.fail("Failed to initialize nocta-ui");
         try {
-            await (0, utils_1.rollbackInitChanges)();
+            await (0, utils_1.rollbackInitChanges)(createdFiles);
             console.log(chalk_1.default.yellow("Rolled back partial changes"));
         }
         catch (rollbackError) {
