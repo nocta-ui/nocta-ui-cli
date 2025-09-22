@@ -190,6 +190,7 @@ export async function init(): Promise<void> {
 			"tailwind-merge": "^3.3.1",
 			"class-variance-authority": "^0.7.1",
 			"@ariakit/react": "^0.4.18",
+			"@radix-ui/react-icons": "^1.3.2"
 		};
 
 		try {

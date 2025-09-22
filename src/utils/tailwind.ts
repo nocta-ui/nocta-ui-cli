@@ -59,7 +59,6 @@ export async function addDesignTokensToCss(
 	--color-ring-offset: var(--ring-offset);
 	--color-primary-foreground: var(--primary-foreground);
 	--color-overlay: var(--overlay);
-	--radius-sm: calc(var(--radius) * 0.5);
 	--radius-xs: calc(var(--radius-base) * 1);
 	--radius-sm: calc(var(--radius-base) * 2);
 	--radius-md: calc(var(--radius-base) * 3);
