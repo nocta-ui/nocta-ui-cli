@@ -1,59 +1,114 @@
-# nocta-ui
+# Nocta UI CLI
 
-CLI for [Nocta UI](https://github.com/66HEX/nocta-ui) - Modern, accessible React components built with TypeScript and Tailwind CSS.
+Modern command line tooling for [Nocta UI](https://github.com/66HEX/nocta-ui). Initialize projects, browse the component registry, and scaffold UI files without leaving your terminal.
+
+## Features
+- Auto-detects Next.js, Vite + React, and React Router 7 (framework mode)
+- Creates `nocta.config.json`, injects Tailwind v4 tokens, and sets up shared utilities
+- Fetches live component metadata from the Nocta registry
+- Adds components with internal dependencies, import normalization, and npm packages
+- Respects your package manager (`npm`, `yarn`, or `pnpm`) based on lockfiles
+
+## Requirements
+- Node.js 16+
+- React 18+
+- Tailwind CSS v4 installed in your project (`node_modules/tailwindcss`)
+- Internet access when running commands (registry + assets are downloaded on demand)
 
 ## Quick Start
-
 ```bash
-# Install Tailwind CSS v4
-npm install -D tailwindcss
-
-# Initialize your project
+# Initialize your project (no global install required)
 npx nocta-ui init
 
-# Add components
-npx nocta-ui add button
-npx nocta-ui add card
+# Browse available components
+npx nocta-ui list
+
+# Add components (installs dependencies and files)
+npx nocta-ui add button card badge
+```
+
+## Installation
+The CLI is distributed via npm. You can run it with `npx` (recommended) or add it to the `scripts` section of your project.
+```bash
+npx nocta-ui --help
 ```
 
 ## Commands
 
 ### `init`
-Initialize your project with Nocta UI:
 ```bash
 npx nocta-ui init
 ```
-- Auto-detects your framework (Next.js, Vite, React Router 7)
-- Creates `nocta.config.json` configuration
-- Installs required dependencies
-- Adds semantic design tokens to your CSS
-- Creates utility functions
+- Validates Tailwind CSS v4 and shows upgrade guidance when an older version is detected
+- Detects supported frameworks (Next.js App Router / Pages Router, Vite + React, React Router 7)
+- Generates `nocta.config.json` tailored to your project directories
+- Downloads shared helpers (`lib/utils.ts`) and a base `icons.ts`
+- Injects Nocta design tokens into the configured Tailwind CSS entry file
+- Installs core dependencies: `clsx`, `tailwind-merge`, `class-variance-authority`, `@ariakit/react`, `@radix-ui/react-icons`
+- Rolls back created files if initialization fails midway
 
 ### `list`
-Show all available components:
 ```bash
 npx nocta-ui list
 ```
+- Loads categories and component descriptions from `https://nocta-ui.com/registry`
+- Displays variants and sizes when provided
+- Reminds you to install components with `npx nocta-ui add <name>`
 
-### `add <component>`
-Add components to your project:
+### `add <components...>`
 ```bash
 npx nocta-ui add button card dialog
 ```
+- Requires a valid `nocta.config.json`
+- Accepts one or multiple component names; nested dependencies are resolved automatically
+- Writes files into the folder configured by `aliases.components`, under a `ui/` subdirectory
+- Prompts before overwriting existing files
+- Normalizes import aliases to `@/` (Next.js, Vite) or `~/` (React Router 7)
+- Installs missing npm packages and reports satisfied or updated versions
+- Prints created paths plus ready-to-copy import statements, variants, and sizes
 
-## Framework Support
+### `--help`
+```bash
+npx nocta-ui --help
+```
+View the top-level help output and available commands.
 
-- **Next.js** (App Router & Pages Router)
-- **Vite + React**
-- **React Router 7** (Framework Mode)
+## Configuration
+`nocta.config.json` governs where files are written and which CSS entry receives design tokens.
 
-## Requirements
+```json
+{
+  "style": "default",
+  "tailwind": {
+    "css": "app/globals.css"
+  },
+  "aliases": {
+    "components": "components",
+    "utils": "lib/utils"
+  }
+}
+```
+- Next.js App Router defaults to `app/globals.css`, `components`, and `lib/utils`
+- Next.js Pages Router uses `styles/globals.css`
+- Vite + React uses `src/App.css`, `src/components`, and `src/lib/utils`
+- React Router 7 uses `app/app.css`, `app/components`, and `app/lib/utils`
+- Update `aliases.components` if you want files placed elsewhere; the CLI always writes into `<alias>/ui/`
 
-- React 18+
-- Tailwind CSS v4
-- TypeScript (recommended)
-- Node.js 16+
+## How Component Installation Works
+1. Fetch component metadata and source files from the registry.
+2. Normalize imports and file paths for your framework.
+3. Write component files, utilities, and icons to your project.
+4. Inspect existing files and prompt before overwriting.
+5. Detect installed dependencies, install missing versions, and log the results.
+
+## Networking Notes
+- The registry, component source files, and design tokens are hosted remotely; commands need network access.
+- If asset downloads fail, the CLI surfaces actionable error messages so you can retry.
+
+## Troubleshooting
+- **Missing Tailwind CSS v4**: Install or upgrade with `npm install -D tailwindcss@latest` (or the equivalent for your package manager).
+- **Unsupported framework detected**: Ensure you're using one of the supported frameworks or adjust your project structure so detection can succeed.
+- **Component not found**: Run `npx nocta-ui list` to confirm the component name, then try again.
 
 ## License
-
 ISC License
