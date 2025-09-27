@@ -2,7 +2,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import ora from "ora";
 import semver from "semver";
-import type { ComponentFileWithContent } from "../types";
+import type { ComponentFile, ComponentFileWithContent } from "../types";
 import {
 	detectFramework,
 	fileExists,
@@ -15,7 +15,20 @@ import {
 	writeComponentFile,
 } from "../utils";
 
-function normalizeComponentContent(content: string, framework: string): string {
+function joinImportPath(prefix: string, importPath: string): string {
+	const normalizedPrefix = prefix.replace(/\/+$/, "");
+	const normalizedPath = importPath.replace(/^\/+/, "");
+	if (!normalizedPath) {
+		return normalizedPrefix;
+	}
+	return `${normalizedPrefix}/${normalizedPath}`;
+}
+
+function normalizeComponentContent(
+	content: string,
+	aliasPrefix: string,
+): string {
+	const sanitizedPrefix = aliasPrefix || "@";
 	return content.replace(
 		/(['"])@\/([^'"\n]+)(['"])/g,
 		(_match, openQuote: string, importPath: string, closeQuote: string) => {
@@ -25,9 +38,14 @@ function normalizeComponentContent(content: string, framework: string): string {
 			} else if (normalizedPath.startsWith("src/")) {
 				normalizedPath = normalizedPath.slice(4);
 			}
+			if (normalizedPath.startsWith("./")) {
+				normalizedPath = normalizedPath.slice(2);
+			}
 
-			const alias = framework === "react-router" ? "~" : "@";
-			return `${openQuote}${alias}/${normalizedPath}${closeQuote}`;
+			return `${openQuote}${joinImportPath(
+				sanitizedPrefix,
+				normalizedPath,
+			)}${closeQuote}`;
 		},
 	);
 }
@@ -58,6 +76,12 @@ export async function add(componentNames: string[]): Promise<void> {
 
 		spinner.text = "Detecting framework...";
 		const frameworkDetection = await detectFramework();
+		const componentAliasPrefix =
+			config.aliasPrefixes?.components !== undefined
+				? config.aliasPrefixes.components
+				: frameworkDetection.framework === "react-router"
+					? "~"
+					: "@";
 
 		spinner.text = "Fetching components and dependencies...";
 		const allComponentsMap = new Map();
@@ -131,11 +155,11 @@ export async function add(componentNames: string[]): Promise<void> {
 		const allComponentFiles: ComponentFileWithContent[] = [];
 		for (const component of allComponents) {
 			const files = await Promise.all(
-				component.files.map(async (file: any) => {
+				component.files.map(async (file: ComponentFile) => {
 					const content = await getComponentFile(file.path);
 					const normalizedContent = normalizeComponentContent(
 						content,
-						frameworkDetection.framework,
+						componentAliasPrefix,
 					);
 					return {
 						...file,
@@ -325,17 +349,12 @@ export async function add(componentNames: string[]): Promise<void> {
 		});
 
 		console.log(chalk.blue("\nImport and use:"));
-		const aliasPrefix =
-			frameworkDetection.framework === "react-router" ? "~" : "@";
 		const normalizeAliasPath = (aliasPath: string): string => {
-			const normalized = aliasPath.replace(/^\/+/, "");
-			if (aliasPrefix === "~") {
-				return normalized.replace(/^app\//, "");
-			}
-			if (aliasPrefix === "@") {
-				return normalized.replace(/^src\//, "");
-			}
-			return normalized;
+			return aliasPath
+				.replace(/^\.\/?/, "")
+				.replace(/^\/+/, "")
+				.replace(/^src\//, "")
+				.replace(/^app\//, "");
 		};
 
 		for (const componentName of componentNames) {
@@ -353,7 +372,10 @@ export async function add(componentNames: string[]): Promise<void> {
 					.replace("components/", "")
 					.replace(".tsx", "");
 				const basePath = normalizeAliasPath(config.aliases.components);
-				const importPath = `${aliasPrefix}/${basePath}/${componentPath}`;
+				const aliasBase = basePath
+					? joinImportPath(componentAliasPrefix, basePath)
+					: componentAliasPrefix;
+				const importPath = joinImportPath(aliasBase, componentPath);
 				console.log(
 					chalk.gray(
 						`   import { ${component.exports.join(", ")} } from "${importPath}"; // ${component.name}`,

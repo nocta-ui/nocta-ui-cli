@@ -1,5 +1,11 @@
 import fs from "fs-extra";
 
+interface PackageJson {
+	dependencies?: Record<string, string>;
+	devDependencies?: Record<string, string>;
+	[key: string]: unknown;
+}
+
 export interface FrameworkDetection {
 	framework: "nextjs" | "vite-react" | "react-router" | "unknown";
 	version?: string;
@@ -32,9 +38,9 @@ export async function isTypeScriptProject(): Promise<boolean> {
 
 export async function detectFramework(): Promise<FrameworkDetection> {
 	try {
-		let packageJson: any = {};
+		let packageJson: PackageJson = {};
 		try {
-			packageJson = await fs.readJson("package.json");
+			packageJson = (await fs.readJson("package.json")) as PackageJson;
 		} catch {
 			return {
 				framework: "unknown",

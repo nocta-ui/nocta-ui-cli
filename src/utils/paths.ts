@@ -6,5 +6,5 @@ export function resolveComponentPath(
 	config: Config,
 ): string {
 	const fileName = path.basename(componentFilePath);
-	return path.join(config.aliases.components, "ui", fileName);
+	return path.join(config.aliases.components, fileName);
 }

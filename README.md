@@ -12,7 +12,7 @@ Modern command line tooling for [Nocta UI](https://github.com/66HEX/nocta-ui). I
 ## Requirements
 - Node.js 16+
 - React 18+
-- Tailwind CSS v4 installed in your project (`node_modules/tailwindcss`)
+- Tailwind CSS v4 installed in your project
 - Internet access when running commands (registry + assets are downloaded on demand)
 
 ## Quick Start
@@ -61,9 +61,9 @@ npx nocta-ui add button card dialog
 ```
 - Requires a valid `nocta.config.json`
 - Accepts one or multiple component names; nested dependencies are resolved automatically
-- Writes files into the folder configured by `aliases.components`, under a `ui/` subdirectory
+- Writes files into the folder configured by `aliases.components`
 - Prompts before overwriting existing files
-- Normalizes import aliases to `@/` (Next.js, Vite) or `~/` (React Router 7)
+- Normalizes import aliases using the prefix from `nocta.config.json` (defaults to `@/` for Next.js/Vite or `~/` for React Router 7)
 - Installs missing npm packages and reports satisfied or updated versions
 - Prints created paths plus ready-to-copy import statements, variants, and sizes
 
@@ -78,6 +78,7 @@ View the top-level help output and available commands.
 
 ```json
 {
+  "$schema": "http://nocta-ui.com/registry/config-schema.json",
   "style": "default",
   "tailwind": {
     "css": "app/globals.css"
@@ -85,14 +86,19 @@ View the top-level help output and available commands.
   "aliases": {
     "components": "components",
     "utils": "lib/utils"
+  },
+  "aliasPrefixes": {
+    "components": "@",
+    "utils": "@"
   }
 }
 ```
-- Next.js App Router defaults to `app/globals.css`, `components`, and `lib/utils`
+- Next.js App Router defaults to `app/globals.css`, `components/ui`, and `lib/utils`
 - Next.js Pages Router uses `styles/globals.css`
-- Vite + React uses `src/App.css`, `src/components`, and `src/lib/utils`
-- React Router 7 uses `app/app.css`, `app/components`, and `app/lib/utils`
-- Update `aliases.components` if you want files placed elsewhere; the CLI always writes into `<alias>/ui/`
+- Vite + React uses `src/App.css`, `src/components/ui`, and `src/lib/utils`
+- React Router 7 uses `app/app.css`, `app/components/ui`, and `app/lib/utils`
+- Update `aliases.components` if you want files placed elsewhere; the CLI always writes into `<alias>/`
+- Update `aliasPrefixes` if you use custom import aliases (for example `@ui` instead of `@/components`).
 
 ## How Component Installation Works
 1. Fetch component metadata and source files from the registry.

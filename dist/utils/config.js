@@ -21,5 +21,10 @@ async function readConfig() {
 }
 async function writeConfig(config) {
     const configPath = node_path_1.default.join(process.cwd(), "nocta.config.json");
-    await fs_extra_1.default.writeJson(configPath, config, { spaces: 2 });
+    const configWithSchema = {
+        $schema: "http://nocta-ui.com/registry/config-schema.json",
+        ...config,
+    };
+    configWithSchema.$schema = "http://nocta-ui.com/registry/config-schema.json";
+    await fs_extra_1.default.writeJson(configPath, configWithSchema, { spaces: 2 });
 }

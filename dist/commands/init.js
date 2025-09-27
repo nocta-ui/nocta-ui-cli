@@ -124,6 +124,7 @@ async function init() {
         spinner.stop();
         spinner.start("Creating configuration...");
         let config;
+        const aliasPrefix = frameworkDetection.framework === "react-router" ? "~" : "@";
         if (frameworkDetection.framework === "nextjs") {
             const isAppRouter = frameworkDetection.details.appStructure === "app-router";
             config = {
@@ -132,7 +133,7 @@ async function init() {
                     css: isAppRouter ? "app/globals.css" : "styles/globals.css",
                 },
                 aliases: {
-                    components: "components",
+                    components: "components/ui",
                     utils: "lib/utils",
                 },
             };
@@ -144,7 +145,7 @@ async function init() {
                     css: "src/App.css",
                 },
                 aliases: {
-                    components: "src/components",
+                    components: "src/components/ui",
                     utils: "src/lib/utils",
                 },
             };
@@ -156,7 +157,7 @@ async function init() {
                     css: "app/app.css",
                 },
                 aliases: {
-                    components: "app/components",
+                    components: "app/components/ui",
                     utils: "app/lib/utils",
                 },
             };
@@ -164,6 +165,10 @@ async function init() {
         else {
             throw new Error("Unsupported framework configuration");
         }
+        config.aliasPrefixes = {
+            components: aliasPrefix,
+            utils: aliasPrefix,
+        };
         await (0, utils_1.writeConfig)(config);
         createdFiles.push("nocta.config.json");
         spinner.text = "Installing required dependencies...";

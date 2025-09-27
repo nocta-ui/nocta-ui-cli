@@ -25,7 +25,7 @@ async function detectFramework() {
     try {
         let packageJson = {};
         try {
-            packageJson = await fs_extra_1.default.readJson("package.json");
+            packageJson = (await fs_extra_1.default.readJson("package.json"));
         }
         catch {
             return {

@@ -32,6 +32,7 @@ export interface Registry {
     requirements: Record<string, string>;
 }
 export interface Config {
+    $schema?: string;
     style: string;
     tailwind: {
         css: string;
@@ -39,5 +40,9 @@ export interface Config {
     aliases: {
         components: string;
         utils: string;
+    };
+    aliasPrefixes?: {
+        components?: string;
+        utils?: string;
     };
 }
