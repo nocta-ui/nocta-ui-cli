@@ -137,9 +137,7 @@ export async function init(): Promise<void> {
 				if (issue.reason === "outdated") {
 					detailLines.push(chalk.gray("update to a compatible version"));
 				} else if (issue.reason === "unknown") {
-					detailLines.push(
-						chalk.gray("unable to determine installed version"),
-					);
+					detailLines.push(chalk.gray("unable to determine installed version"));
 				}
 				for (const line of detailLines) {
 					console.log(`      ${line}`);
@@ -183,7 +181,6 @@ export async function init(): Promise<void> {
 				frameworkDetection.details.appStructure === "app-router";
 			config = {
 				style: "default",
-				tsx: true,
 				tailwind: {
 					css: isAppRouter ? "app/globals.css" : "styles/globals.css",
 				},
@@ -195,7 +192,6 @@ export async function init(): Promise<void> {
 		} else if (frameworkDetection.framework === "vite-react") {
 			config = {
 				style: "default",
-				tsx: true,
 				tailwind: {
 					css: "src/App.css",
 				},
@@ -207,7 +203,6 @@ export async function init(): Promise<void> {
 		} else if (frameworkDetection.framework === "react-router") {
 			config = {
 				style: "default",
-				tsx: true,
 				tailwind: {
 					css: "app/app.css",
 				},
@@ -241,28 +236,28 @@ export async function init(): Promise<void> {
 			console.log(chalk.yellow("Run: npm install clsx tailwind-merge"));
 		}
 
-	spinner.text = "Creating utility functions...";
-	const utilsPath = `${config.aliases.utils}.ts`;
-	const utilsExists = await fileExists(utilsPath);
-	let utilsCreated = false;
+		spinner.text = "Creating utility functions...";
+		const utilsPath = `${config.aliases.utils}.ts`;
+		const utilsExists = await fileExists(utilsPath);
+		let utilsCreated = false;
 
-	if (utilsExists) {
+		if (utilsExists) {
 			spinner.stop();
 			console.log(
 				chalk.yellow(`${utilsPath} already exists - skipping creation`),
 			);
 			spinner.start();
-	} else {
-		const utilsContent = await getRegistryAsset("lib/utils.ts");
-		await writeComponentFile(utilsPath, utilsContent);
-		createdFiles.push(utilsPath);
-		utilsCreated = true;
-	}
+		} else {
+			const utilsContent = await getRegistryAsset("lib/utils.ts");
+			await writeComponentFile(utilsPath, utilsContent);
+			createdFiles.push(utilsPath);
+			utilsCreated = true;
+		}
 
-	spinner.text = "Creating base icons component...";
-	const iconsPath = resolveComponentPath("components/icons.ts", config);
-	const iconsExist = await fileExists(iconsPath);
-	let iconsCreated = false;
+		spinner.text = "Creating base icons component...";
+		const iconsPath = resolveComponentPath("components/icons.ts", config);
+		const iconsExist = await fileExists(iconsPath);
+		let iconsCreated = false;
 
 		if (iconsExist) {
 			spinner.stop();
@@ -270,12 +265,12 @@ export async function init(): Promise<void> {
 				chalk.yellow(`${iconsPath} already exists - skipping creation`),
 			);
 			spinner.start();
-	} else {
-		const iconsContent = await getRegistryAsset("icons/icons.ts");
-		await writeComponentFile(iconsPath, iconsContent);
-		createdFiles.push(iconsPath);
-		iconsCreated = true;
-	}
+		} else {
+			const iconsContent = await getRegistryAsset("icons/icons.ts");
+			await writeComponentFile(iconsPath, iconsContent);
+			createdFiles.push(iconsPath);
+			iconsCreated = true;
+		}
 
 		spinner.text = "Adding semantic color variables...";
 		let tokensAdded = false;

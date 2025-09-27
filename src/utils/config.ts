@@ -1,5 +1,5 @@
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 import type { Config } from "../types";
 
 export async function readConfig(): Promise<Config | null> {

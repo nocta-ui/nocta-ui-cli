@@ -128,7 +128,6 @@ async function init() {
             const isAppRouter = frameworkDetection.details.appStructure === "app-router";
             config = {
                 style: "default",
-                tsx: true,
                 tailwind: {
                     css: isAppRouter ? "app/globals.css" : "styles/globals.css",
                 },
@@ -141,7 +140,6 @@ async function init() {
         else if (frameworkDetection.framework === "vite-react") {
             config = {
                 style: "default",
-                tsx: true,
                 tailwind: {
                     css: "src/App.css",
                 },
@@ -154,7 +152,6 @@ async function init() {
         else if (frameworkDetection.framework === "react-router") {
             config = {
                 style: "default",
-                tsx: true,
                 tailwind: {
                     css: "app/app.css",
                 },

@@ -40,7 +40,6 @@ export interface Registry {
 
 export interface Config {
 	style: string;
-	tsx: boolean;
 	tailwind: {
 		css: string;
 	};

@@ -1,5 +1,5 @@
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 
 import { getRegistryAsset } from "./registry";
 
@@ -17,9 +17,7 @@ export async function addDesignTokensToCss(
 		let cssContent = "";
 		if (await fs.pathExists(fullPath)) {
 			cssContent = await fs.readFile(fullPath, "utf8");
-			const hasRegistryTheme = cssContent.includes(
-				"NOCTA CSS THEME VARIABLES",
-			);
+			const hasRegistryTheme = cssContent.includes("NOCTA CSS THEME VARIABLES");
 			if (hasRegistryTheme) {
 				return false;
 			}
@@ -48,9 +46,13 @@ export async function addDesignTokensToCss(
 		if (lastImportIndex >= 0) {
 			const beforeImports = lines.slice(0, lastImportIndex + 1);
 			const afterImports = lines.slice(lastImportIndex + 1);
-			newContent = [...beforeImports, "", normalizedSnippet, "", ...afterImports].join(
-				"\n",
-			);
+			newContent = [
+				...beforeImports,
+				"",
+				normalizedSnippet,
+				"",
+				...afterImports,
+			].join("\n");
 		} else {
 			newContent = `${normalizedSnippet}\n\n${cssContent}`;
 		}

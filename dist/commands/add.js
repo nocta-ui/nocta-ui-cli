@@ -9,13 +9,18 @@ const inquirer_1 = __importDefault(require("inquirer"));
 const ora_1 = __importDefault(require("ora"));
 const semver_1 = __importDefault(require("semver"));
 const utils_1 = require("../utils");
-function processComponentContent(content, framework) {
-    let processedContent = content;
-    processedContent = processedContent.replace(/^(\s*(?:import|export).*?from\s+)(['"])\.\.\/([^'"]+)\2/gm, "$1$2./$3$2");
-    if (framework === "react-router") {
-        processedContent = processedContent.replace(/^(\s*(?:import|export).*?from\s+)(['"])@\//gm, "$1$2~/");
-    }
-    return processedContent;
+function normalizeComponentContent(content, framework) {
+    return content.replace(/(['"])@\/([^'"\n]+)(['"])/g, (_match, openQuote, importPath, closeQuote) => {
+        let normalizedPath = importPath;
+        if (normalizedPath.startsWith("app/")) {
+            normalizedPath = normalizedPath.slice(4);
+        }
+        else if (normalizedPath.startsWith("src/")) {
+            normalizedPath = normalizedPath.slice(4);
+        }
+        const alias = framework === "react-router" ? "~" : "@";
+        return `${openQuote}${alias}/${normalizedPath}${closeQuote}`;
+    });
 }
 async function add(componentNames) {
     if (componentNames.length === 0) {
@@ -85,10 +90,10 @@ async function add(componentNames) {
         for (const component of allComponents) {
             const files = await Promise.all(component.files.map(async (file) => {
                 const content = await (0, utils_1.getComponentFile)(file.path);
-                const processedContent = processComponentContent(content, frameworkDetection.framework);
+                const normalizedContent = normalizeComponentContent(content, frameworkDetection.framework);
                 return {
                     ...file,
-                    content: processedContent,
+                    content: normalizedContent,
                     componentName: component.name,
                 };
             }));
@@ -229,6 +234,16 @@ async function add(componentNames) {
         });
         console.log(chalk_1.default.blue("\nImport and use:"));
         const aliasPrefix = frameworkDetection.framework === "react-router" ? "~" : "@";
+        const normalizeAliasPath = (aliasPath) => {
+            const normalized = aliasPath.replace(/^\/+/, "");
+            if (aliasPrefix === "~") {
+                return normalized.replace(/^app\//, "");
+            }
+            if (aliasPrefix === "@") {
+                return normalized.replace(/^src\//, "");
+            }
+            return normalized;
+        };
         for (const componentName of componentNames) {
             const component = allComponents.find((c) => {
                 const registryKey = c.files[0].path.split("/").pop()?.replace(".tsx", "") || "";
@@ -240,7 +255,8 @@ async function add(componentNames) {
                 const componentPath = firstFile.path
                     .replace("components/", "")
                     .replace(".tsx", "");
-                const importPath = `${aliasPrefix}/${config.aliases.components}/${componentPath}`;
+                const basePath = normalizeAliasPath(config.aliases.components);
+                const importPath = `${aliasPrefix}/${basePath}/${componentPath}`;
                 console.log(chalk_1.default.gray(`   import { ${component.exports.join(", ")} } from "${importPath}"; // ${component.name}`));
             }
         }

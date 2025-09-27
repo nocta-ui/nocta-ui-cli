@@ -1,6 +1,6 @@
+import { join } from "node:path";
 import { existsSync, readFileSync } from "fs";
 import fs from "fs-extra";
-import { join } from "path";
 import { gte, minVersion, satisfies } from "semver";
 
 export interface RequirementIssue {

@@ -5,12 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.addDesignTokensToCss = addDesignTokensToCss;
 exports.checkTailwindInstallation = checkTailwindInstallation;
+const node_path_1 = __importDefault(require("node:path"));
 const fs_extra_1 = __importDefault(require("fs-extra"));
-const path_1 = __importDefault(require("path"));
 const registry_1 = require("./registry");
 const CSS_REGISTRY_PATH = "css/index.css";
 async function addDesignTokensToCss(cssFilePath) {
-    const fullPath = path_1.default.join(process.cwd(), cssFilePath);
+    const fullPath = node_path_1.default.join(process.cwd(), cssFilePath);
     const tailwindImportPattern = /@import\s+["']tailwindcss["'];?/i;
     try {
         const registryCss = await (0, registry_1.getRegistryAsset)(CSS_REGISTRY_PATH);
@@ -43,12 +43,18 @@ async function addDesignTokensToCss(cssFilePath) {
         if (lastImportIndex >= 0) {
             const beforeImports = lines.slice(0, lastImportIndex + 1);
             const afterImports = lines.slice(lastImportIndex + 1);
-            newContent = [...beforeImports, "", normalizedSnippet, "", ...afterImports].join("\n");
+            newContent = [
+                ...beforeImports,
+                "",
+                normalizedSnippet,
+                "",
+                ...afterImports,
+            ].join("\n");
         }
         else {
             newContent = `${normalizedSnippet}\n\n${cssContent}`;
         }
-        await fs_extra_1.default.ensureDir(path_1.default.dirname(fullPath));
+        await fs_extra_1.default.ensureDir(node_path_1.default.dirname(fullPath));
         await fs_extra_1.default.writeFile(fullPath, newContent, "utf8");
         return true;
     }
@@ -64,7 +70,7 @@ async function checkTailwindInstallation() {
         if (!tailwindVersion) {
             return { installed: false };
         }
-        const nodeModulesPath = path_1.default.join(process.cwd(), "node_modules", "tailwindcss");
+        const nodeModulesPath = node_path_1.default.join(process.cwd(), "node_modules", "tailwindcss");
         const existsInNodeModules = await fs_extra_1.default.pathExists(nodeModulesPath);
         return {
             installed: existsInNodeModules,

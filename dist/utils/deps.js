@@ -6,13 +6,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getInstalledDependencies = getInstalledDependencies;
 exports.installDependencies = installDependencies;
 exports.checkProjectRequirements = checkProjectRequirements;
+const node_path_1 = require("node:path");
 const fs_1 = require("fs");
 const fs_extra_1 = __importDefault(require("fs-extra"));
-const path_1 = require("path");
 const semver_1 = require("semver");
 async function getInstalledDependencies() {
     try {
-        const packageJsonPath = (0, path_1.join)(process.cwd(), "package.json");
+        const packageJsonPath = (0, node_path_1.join)(process.cwd(), "package.json");
         if (!(0, fs_1.existsSync)(packageJsonPath)) {
             return {};
         }
@@ -24,7 +24,7 @@ async function getInstalledDependencies() {
         const actualVersions = {};
         for (const depName of Object.keys(allDeps)) {
             try {
-                const nodeModulesPath = (0, path_1.join)(process.cwd(), "node_modules", depName, "package.json");
+                const nodeModulesPath = (0, node_path_1.join)(process.cwd(), "node_modules", depName, "package.json");
                 if ((0, fs_1.existsSync)(nodeModulesPath)) {
                     const depPackageJson = JSON.parse((0, fs_1.readFileSync)(nodeModulesPath, "utf8"));
                     actualVersions[depName] = depPackageJson.version;
@@ -77,7 +77,7 @@ async function checkProjectRequirements(requirements) {
             });
             continue;
         }
-        const modulePackagePath = (0, path_1.join)(process.cwd(), "node_modules", ...name.split("/"), "package.json");
+        const modulePackagePath = (0, node_path_1.join)(process.cwd(), "node_modules", ...name.split("/"), "package.json");
         if (!(0, fs_1.existsSync)(modulePackagePath)) {
             issues.push({
                 name,

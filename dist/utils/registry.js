@@ -10,7 +10,8 @@ exports.getCategories = getCategories;
 exports.getComponentWithDependencies = getComponentWithDependencies;
 const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
 const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
-const COMPONENTS_BASE_URL = "https://raw.githubusercontent.com/66HEX/nocta-ui/main";
+const COMPONENTS_MANIFEST_PATH = "components.json";
+let componentsManifestPromise = null;
 async function getRegistry() {
     try {
         const response = await fetch(REGISTRY_URL);
@@ -32,16 +33,35 @@ async function getComponent(name) {
     return component;
 }
 async function getComponentFile(filePath) {
+    const fileName = filePath.split("/").pop();
+    if (!fileName) {
+        throw new Error(`Invalid component file path: ${filePath}`);
+    }
     try {
-        const response = await fetch(`${COMPONENTS_BASE_URL}/${filePath}`);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch component file: ${response.statusText}`);
+        const manifest = await getComponentsManifest();
+        const encodedComponent = manifest[fileName];
+        if (!encodedComponent) {
+            throw new Error(`Component file "${fileName}" not found in registry manifest`);
         }
-        return await response.text();
+        return Buffer.from(encodedComponent, "base64").toString("utf8");
     }
     catch (error) {
         throw new Error(`Failed to load component file: ${error}`);
     }
+}
+async function getComponentsManifest() {
+    if (!componentsManifestPromise) {
+        componentsManifestPromise = (async () => {
+            const manifestContent = await getRegistryAsset(COMPONENTS_MANIFEST_PATH);
+            try {
+                return JSON.parse(manifestContent);
+            }
+            catch (error) {
+                throw new Error(`Invalid components manifest JSON: ${error}`);
+            }
+        })();
+    }
+    return componentsManifestPromise;
 }
 async function listComponents() {
     const registry = await getRegistry();

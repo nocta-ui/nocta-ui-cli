@@ -1,5 +1,5 @@
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 
 export async function rollbackInitChanges(paths: string[] = []): Promise<void> {
 	const uniquePaths = Array.from(new Set(paths));
