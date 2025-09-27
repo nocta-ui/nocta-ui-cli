@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkTailwindInstallation = exports.addDesignTokensToCss = exports.rollbackInitChanges = exports.listComponents = exports.getRegistry = exports.getComponentWithDependencies = exports.getComponentsByCategory = exports.getComponentFile = exports.getComponent = exports.getCategories = exports.resolveComponentPath = exports.writeComponentFile = exports.fileExists = exports.isTypeScriptProject = exports.detectFramework = exports.installDependencies = exports.getInstalledDependencies = exports.writeConfig = exports.readConfig = void 0;
+exports.checkTailwindInstallation = exports.addDesignTokensToCss = exports.rollbackInitChanges = exports.listComponents = exports.getRegistryAsset = exports.getRegistry = exports.getComponentWithDependencies = exports.getComponentsByCategory = exports.getComponentFile = exports.getComponent = exports.getCategories = exports.resolveComponentPath = exports.writeComponentFile = exports.fileExists = exports.isTypeScriptProject = exports.detectFramework = exports.installDependencies = exports.getInstalledDependencies = exports.writeConfig = exports.readConfig = void 0;
 var config_1 = require("./config");
 Object.defineProperty(exports, "readConfig", { enumerable: true, get: function () { return config_1.readConfig; } });
 Object.defineProperty(exports, "writeConfig", { enumerable: true, get: function () { return config_1.writeConfig; } });
@@ -22,6 +22,7 @@ Object.defineProperty(exports, "getComponentFile", { enumerable: true, get: func
 Object.defineProperty(exports, "getComponentsByCategory", { enumerable: true, get: function () { return registry_1.getComponentsByCategory; } });
 Object.defineProperty(exports, "getComponentWithDependencies", { enumerable: true, get: function () { return registry_1.getComponentWithDependencies; } });
 Object.defineProperty(exports, "getRegistry", { enumerable: true, get: function () { return registry_1.getRegistry; } });
+Object.defineProperty(exports, "getRegistryAsset", { enumerable: true, get: function () { return registry_1.getRegistryAsset; } });
 Object.defineProperty(exports, "listComponents", { enumerable: true, get: function () { return registry_1.listComponents; } });
 var rollback_1 = require("./rollback");
 Object.defineProperty(exports, "rollbackInitChanges", { enumerable: true, get: function () { return rollback_1.rollbackInitChanges; } });

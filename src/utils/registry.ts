@@ -1,7 +1,7 @@
 import type { Component, Registry } from "../types";
 
-const REGISTRY_URL =
-	"https://raw.githubusercontent.com/66HEX/nocta-ui/main/registry.json";
+const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
+const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
 const COMPONENTS_BASE_URL =
 	"https://raw.githubusercontent.com/66HEX/nocta-ui/main";
 
@@ -43,6 +43,21 @@ export async function getComponentFile(filePath: string): Promise<string> {
 export async function listComponents(): Promise<Component[]> {
 	const registry = await getRegistry();
 	return Object.values(registry.components);
+}
+
+export async function getRegistryAsset(assetPath: string): Promise<string> {
+	const normalizedPath = assetPath.replace(/^\/+/, "");
+	try {
+		const response = await fetch(`${REGISTRY_BASE_URL}/${normalizedPath}`);
+		if (!response.ok) {
+			throw new Error(
+				`Failed to fetch registry asset "${assetPath}": ${response.statusText}`,
+			);
+		}
+		return await response.text();
+	} catch (error) {
+		throw new Error(`Failed to load registry asset "${assetPath}": ${error}`);
+	}
 }
 
 export async function getComponentsByCategory(

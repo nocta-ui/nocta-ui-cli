@@ -11,6 +11,7 @@ export {
 	getComponentsByCategory,
 	getComponentWithDependencies,
 	getRegistry,
+	getRegistryAsset,
 	listComponents,
 } from "./registry";
 

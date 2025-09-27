@@ -6,6 +6,7 @@ import {
 	checkTailwindInstallation,
 	detectFramework,
 	fileExists,
+	getRegistryAsset,
 	installDependencies,
 	readConfig,
 	resolveComponentPath,
@@ -205,53 +206,28 @@ export async function init(): Promise<void> {
 			console.log(chalk.yellow("Run: npm install clsx tailwind-merge"));
 		}
 
-		spinner.text = "Creating utility functions...";
-		const utilsContent = `import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
+	spinner.text = "Creating utility functions...";
+	const utilsPath = `${config.aliases.utils}.ts`;
+	const utilsExists = await fileExists(utilsPath);
+	let utilsCreated = false;
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-`;
-
-		const utilsPath = `${config.aliases.utils}.ts`;
-		const utilsExists = await fileExists(utilsPath);
-		let utilsCreated = false;
-
-		if (utilsExists) {
+	if (utilsExists) {
 			spinner.stop();
 			console.log(
 				chalk.yellow(`${utilsPath} already exists - skipping creation`),
 			);
 			spinner.start();
-		} else {
-			await writeComponentFile(utilsPath, utilsContent);
-			createdFiles.push(utilsPath);
-			utilsCreated = true;
-		}
+	} else {
+		const utilsContent = await getRegistryAsset("lib/utils.ts");
+		await writeComponentFile(utilsPath, utilsContent);
+		createdFiles.push(utilsPath);
+		utilsCreated = true;
+	}
 
-		spinner.text = "Creating base icons component...";
-		const iconsContent = `import * as RadixIcons from "@radix-ui/react-icons";
-
-export const Icons = {
-	ChevronDown: RadixIcons.ChevronDownIcon,
-	ChevronLeft: RadixIcons.ChevronLeftIcon,
-	ChevronRight: RadixIcons.ChevronRightIcon,
-	Check: RadixIcons.CheckIcon,
-	CaretSort: RadixIcons.CaretSortIcon,
-	FileUpload: RadixIcons.UploadIcon,
-	User: RadixIcons.PersonIcon,
-	Info: RadixIcons.InfoCircledIcon,
-	Warning: RadixIcons.ExclamationTriangleIcon,
-	Success: RadixIcons.CheckCircledIcon,
-	X: RadixIcons.Cross2Icon,
-	SendMessage: RadixIcons.PaperPlaneIcon,
-};
-`;
-
-		const iconsPath = resolveComponentPath("components/icons.ts", config);
-		const iconsExist = await fileExists(iconsPath);
-		let iconsCreated = false;
+	spinner.text = "Creating base icons component...";
+	const iconsPath = resolveComponentPath("components/icons.ts", config);
+	const iconsExist = await fileExists(iconsPath);
+	let iconsCreated = false;
 
 		if (iconsExist) {
 			spinner.stop();
@@ -259,11 +235,12 @@ export const Icons = {
 				chalk.yellow(`${iconsPath} already exists - skipping creation`),
 			);
 			spinner.start();
-		} else {
-			await writeComponentFile(iconsPath, iconsContent);
-			createdFiles.push(iconsPath);
-			iconsCreated = true;
-		}
+	} else {
+		const iconsContent = await getRegistryAsset("icons/icons.ts");
+		await writeComponentFile(iconsPath, iconsContent);
+		createdFiles.push(iconsPath);
+		iconsCreated = true;
+	}
 
 		spinner.text = "Adding semantic color variables...";
 		let tokensAdded = false;

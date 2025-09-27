@@ -158,13 +158,6 @@ async function init() {
             console.log(chalk_1.default.yellow("Run: npm install clsx tailwind-merge"));
         }
         spinner.text = "Creating utility functions...";
-        const utilsContent = `import { type ClassValue, clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-`;
         const utilsPath = `${config.aliases.utils}.ts`;
         const utilsExists = await (0, utils_1.fileExists)(utilsPath);
         let utilsCreated = false;
@@ -174,28 +167,12 @@ export function cn(...inputs: ClassValue[]) {
             spinner.start();
         }
         else {
+            const utilsContent = await (0, utils_1.getRegistryAsset)("lib/utils.ts");
             await (0, utils_1.writeComponentFile)(utilsPath, utilsContent);
             createdFiles.push(utilsPath);
             utilsCreated = true;
         }
         spinner.text = "Creating base icons component...";
-        const iconsContent = `import * as RadixIcons from "@radix-ui/react-icons";
-
-export const Icons = {
-	ChevronDown: RadixIcons.ChevronDownIcon,
-	ChevronLeft: RadixIcons.ChevronLeftIcon,
-	ChevronRight: RadixIcons.ChevronRightIcon,
-	Check: RadixIcons.CheckIcon,
-	CaretSort: RadixIcons.CaretSortIcon,
-	FileUpload: RadixIcons.UploadIcon,
-	User: RadixIcons.PersonIcon,
-	Info: RadixIcons.InfoCircledIcon,
-	Warning: RadixIcons.ExclamationTriangleIcon,
-	Success: RadixIcons.CheckCircledIcon,
-	X: RadixIcons.Cross2Icon,
-	SendMessage: RadixIcons.PaperPlaneIcon,
-};
-`;
         const iconsPath = (0, utils_1.resolveComponentPath)("components/icons.ts", config);
         const iconsExist = await (0, utils_1.fileExists)(iconsPath);
         let iconsCreated = false;
@@ -205,6 +182,7 @@ export const Icons = {
             spinner.start();
         }
         else {
+            const iconsContent = await (0, utils_1.getRegistryAsset)("icons/icons.ts");
             await (0, utils_1.writeComponentFile)(iconsPath, iconsContent);
             createdFiles.push(iconsPath);
             iconsCreated = true;

@@ -4,10 +4,12 @@ exports.getRegistry = getRegistry;
 exports.getComponent = getComponent;
 exports.getComponentFile = getComponentFile;
 exports.listComponents = listComponents;
+exports.getRegistryAsset = getRegistryAsset;
 exports.getComponentsByCategory = getComponentsByCategory;
 exports.getCategories = getCategories;
 exports.getComponentWithDependencies = getComponentWithDependencies;
-const REGISTRY_URL = "https://raw.githubusercontent.com/66HEX/nocta-ui/main/registry.json";
+const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
+const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
 const COMPONENTS_BASE_URL = "https://raw.githubusercontent.com/66HEX/nocta-ui/main";
 async function getRegistry() {
     try {
@@ -44,6 +46,19 @@ async function getComponentFile(filePath) {
 async function listComponents() {
     const registry = await getRegistry();
     return Object.values(registry.components);
+}
+async function getRegistryAsset(assetPath) {
+    const normalizedPath = assetPath.replace(/^\/+/, "");
+    try {
+        const response = await fetch(`${REGISTRY_BASE_URL}/${normalizedPath}`);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch registry asset "${assetPath}": ${response.statusText}`);
+        }
+        return await response.text();
+    }
+    catch (error) {
+        throw new Error(`Failed to load registry asset "${assetPath}": ${error}`);
+    }
 }
 async function getComponentsByCategory(category) {
     const registry = await getRegistry();
