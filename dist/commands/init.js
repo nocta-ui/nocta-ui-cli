@@ -74,6 +74,33 @@ async function init() {
             frameworkInfo = `React Router ${frameworkDetection.version || ""} (Framework Mode)`;
         }
         spinner.text = `Found ${frameworkInfo} ✓`;
+        spinner.text = "Validating project requirements...";
+        const { requirements } = await (0, utils_1.getRegistry)();
+        const requirementIssues = await (0, utils_1.checkProjectRequirements)(requirements);
+        if (requirementIssues.length > 0) {
+            spinner.fail("Project requirements not satisfied!");
+            console.log(chalk_1.default.red("\nPlease update the following dependencies:"));
+            for (const issue of requirementIssues) {
+                console.log(chalk_1.default.yellow(`   ${issue.name}: requires ${issue.required}`));
+                const detailLines = [];
+                detailLines.push(issue.installed
+                    ? chalk_1.default.gray(`installed: ${issue.installed}`)
+                    : chalk_1.default.gray("installed: not found"));
+                if (issue.declared) {
+                    detailLines.push(chalk_1.default.gray(`declared: ${issue.declared}`));
+                }
+                if (issue.reason === "outdated") {
+                    detailLines.push(chalk_1.default.gray("update to a compatible version"));
+                }
+                else if (issue.reason === "unknown") {
+                    detailLines.push(chalk_1.default.gray("unable to determine installed version"));
+                }
+                for (const line of detailLines) {
+                    console.log(`      ${line}`);
+                }
+            }
+            return;
+        }
         const versionStr = tailwindCheck.version || "";
         const majorMatch = versionStr.match(/[\^~]?(\d+)(?:\.|\b)/);
         const major = majorMatch

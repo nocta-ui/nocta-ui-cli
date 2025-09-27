@@ -1,6 +1,15 @@
 import { existsSync, readFileSync } from "fs";
 import fs from "fs-extra";
 import { join } from "path";
+import { gte, minVersion, satisfies } from "semver";
+
+export interface RequirementIssue {
+	name: string;
+	required: string;
+	installed?: string;
+	declared?: string;
+	reason: "missing" | "outdated" | "unknown";
+}
 
 export async function getInstalledDependencies(): Promise<
 	Record<string, string>
@@ -77,4 +86,67 @@ export async function installDependencies(
 
 	console.log(`Installing dependencies with ${packageManager}...`);
 	execSync(installCmd, { stdio: "inherit" });
+}
+
+export async function checkProjectRequirements(
+	requirements: Record<string, string>,
+): Promise<RequirementIssue[]> {
+	const installed = await getInstalledDependencies();
+	const issues: RequirementIssue[] = [];
+
+	for (const [name, requiredRange] of Object.entries(requirements)) {
+		const installedSpec = installed[name];
+		if (!installedSpec) {
+			issues.push({
+				name,
+				required: requiredRange,
+				reason: "missing",
+			});
+			continue;
+		}
+
+		const modulePackagePath = join(
+			process.cwd(),
+			"node_modules",
+			...name.split("/"),
+			"package.json",
+		);
+		if (!existsSync(modulePackagePath)) {
+			issues.push({
+				name,
+				required: requiredRange,
+				declared: installedSpec,
+				reason: "missing",
+			});
+			continue;
+		}
+
+		const resolvedVersion = minVersion(installedSpec);
+		const minimumRequired = minVersion(requiredRange);
+		const rangeSatisfied = resolvedVersion
+			? satisfies(resolvedVersion, requiredRange, {
+					includePrerelease: true,
+				})
+			: false;
+		const higherVersionSatisfied =
+			resolvedVersion && minimumRequired
+				? gte(resolvedVersion, minimumRequired)
+				: false;
+
+		if (!resolvedVersion || (!rangeSatisfied && !higherVersionSatisfied)) {
+			const normalizedVersion = resolvedVersion?.version;
+			issues.push({
+				name,
+				required: requiredRange,
+				installed: normalizedVersion,
+				declared:
+					normalizedVersion && normalizedVersion === installedSpec
+						? undefined
+						: installedSpec,
+				reason: resolvedVersion ? "outdated" : "unknown",
+			});
+		}
+	}
+
+	return issues;
 }

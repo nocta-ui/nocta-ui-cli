@@ -1,5 +1,9 @@
 export { readConfig, writeConfig } from "./config";
-export { getInstalledDependencies, installDependencies } from "./deps";
+export {
+	checkProjectRequirements,
+	getInstalledDependencies,
+	installDependencies,
+} from "./deps";
 export type { FrameworkDetection } from "./framework";
 export { detectFramework, isTypeScriptProject } from "./framework";
 export { fileExists, writeComponentFile } from "./fs";

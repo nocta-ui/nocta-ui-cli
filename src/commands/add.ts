@@ -6,7 +6,6 @@ import type { ComponentFileWithContent } from "../types";
 import {
 	detectFramework,
 	fileExists,
-	getComponent,
 	getComponentFile,
 	getComponentWithDependencies,
 	getInstalledDependencies,

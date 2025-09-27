@@ -1,10 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkTailwindInstallation = exports.addDesignTokensToCss = exports.rollbackInitChanges = exports.listComponents = exports.getRegistryAsset = exports.getRegistry = exports.getComponentWithDependencies = exports.getComponentsByCategory = exports.getComponentFile = exports.getComponent = exports.getCategories = exports.resolveComponentPath = exports.writeComponentFile = exports.fileExists = exports.isTypeScriptProject = exports.detectFramework = exports.installDependencies = exports.getInstalledDependencies = exports.writeConfig = exports.readConfig = void 0;
+exports.checkTailwindInstallation = exports.addDesignTokensToCss = exports.rollbackInitChanges = exports.listComponents = exports.getRegistryAsset = exports.getRegistry = exports.getComponentWithDependencies = exports.getComponentsByCategory = exports.getComponentFile = exports.getComponent = exports.getCategories = exports.resolveComponentPath = exports.writeComponentFile = exports.fileExists = exports.isTypeScriptProject = exports.detectFramework = exports.installDependencies = exports.getInstalledDependencies = exports.checkProjectRequirements = exports.writeConfig = exports.readConfig = void 0;
 var config_1 = require("./config");
 Object.defineProperty(exports, "readConfig", { enumerable: true, get: function () { return config_1.readConfig; } });
 Object.defineProperty(exports, "writeConfig", { enumerable: true, get: function () { return config_1.writeConfig; } });
 var deps_1 = require("./deps");
+Object.defineProperty(exports, "checkProjectRequirements", { enumerable: true, get: function () { return deps_1.checkProjectRequirements; } });
 Object.defineProperty(exports, "getInstalledDependencies", { enumerable: true, get: function () { return deps_1.getInstalledDependencies; } });
 Object.defineProperty(exports, "installDependencies", { enumerable: true, get: function () { return deps_1.installDependencies; } });
 var framework_1 = require("./framework");

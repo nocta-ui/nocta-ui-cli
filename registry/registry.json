@@ -1,0 +1,1280 @@
+{
+	"name": "nocta-ui",
+	"description": "A collection of modern, accessible React components built with TypeScript and Tailwind CSS",
+	"version": "1.1.0",
+	"components": {
+		"accordion": {
+			"name": "Accordion",
+			"description": "A vertically stacked set of interactive headings that each reveal a section of content",
+			"category": "layout",
+			"files": [
+				{
+					"name": "accordion.tsx",
+					"path": "app/components/ui/accordion/accordion.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": [
+				"Accordion",
+				"AccordionItem",
+				"AccordionTrigger",
+				"AccordionContent"
+			],
+			"props": {
+				"Accordion": [
+					"children",
+					"type",
+					"variant",
+					"size",
+					"defaultValue",
+					"value",
+					"onValueChange",
+					"className"
+				],
+				"AccordionItem": ["children", "value", "disabled", "className"],
+				"AccordionTrigger": ["children", "className"],
+				"AccordionContent": ["children", "className"]
+			},
+			"variants": ["default", "card"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"alert": {
+			"name": "Alert",
+			"description": "Alert component with different variants and nested components",
+			"category": "feedback",
+			"files": [
+				{
+					"name": "alert.tsx",
+					"path": "app/components/ui/alert/alert.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Alert", "AlertTitle", "AlertDescription", "AlertIcon"],
+			"props": {
+				"Alert": ["variant", "showIcon", "className", "children"],
+				"AlertTitle": ["children", "className", "as"],
+				"AlertDescription": ["children", "className"]
+			},
+			"variants": ["default", "error", "warning", "success"]
+		},
+		"avatar": {
+			"name": "Avatar",
+			"description": "Avatar component with image fallback, status indicator, and multiple sizes",
+			"category": "data-display",
+			"files": [
+				{
+					"name": "avatar.tsx",
+					"path": "app/components/ui/avatar/avatar.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Avatar"],
+			"props": {
+				"Avatar": [
+					"src",
+					"alt",
+					"fallback",
+					"size",
+					"variant",
+					"status",
+					"className"
+				]
+			},
+			"sizes": ["xs", "sm", "md", "lg", "xl", "2xl"],
+			"variants": ["circle", "square"]
+		},
+		"badge": {
+			"name": "Badge",
+			"description": "Badge component for displaying status, counts, or labels",
+			"category": "data-display",
+			"files": [
+				{
+					"name": "badge.tsx",
+					"path": "app/components/ui/badge/badge.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Badge"],
+			"props": {
+				"Badge": ["children", "variant", "size", "className"]
+			},
+			"variants": ["default", "secondary", "destructive", "success", "warning"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"button": {
+			"name": "Button",
+			"description": "Button component with multiple variants and sizes",
+			"category": "form",
+			"files": [
+				{
+					"name": "button.tsx",
+					"path": "app/components/ui/button/button.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Button"],
+			"props": {
+				"Button": ["children", "variant", "size", "className", "disabled"]
+			},
+			"variants": ["primary", "secondary", "ghost", "icon"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"card": {
+			"name": "Card",
+			"description": "Card component with composable layout sections",
+			"category": "layout",
+			"files": [
+				{
+					"name": "card.tsx",
+					"path": "app/components/ui/card/card.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": [
+				"Card",
+				"CardHeader",
+				"CardTitle",
+				"CardDescription",
+				"CardContent",
+				"CardFooter",
+				"CardActions"
+			],
+			"props": {
+				"Card": ["children", "className"],
+				"CardHeader": ["children", "className"],
+				"CardTitle": ["children", "className", "as"],
+				"CardDescription": ["children", "className"],
+				"CardContent": ["children", "className"],
+				"CardFooter": ["children", "className"],
+				"CardActions": ["children", "className"]
+			}
+		},
+		"calendar": {
+			"name": "Calendar",
+			"description": "A fully featured date picker with keyboard navigation, accessibility support, and customizable styling",
+			"category": "form",
+			"files": [
+				{
+					"name": "calendar.tsx",
+					"path": "app/components/ui/calendar/calendar.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Calendar"],
+			"props": {
+				"Calendar": [
+					"value",
+					"defaultValue",
+					"onChange",
+					"variant",
+					"size",
+					"disabled",
+					"disabledDates",
+					"minDate",
+					"maxDate",
+					"showWeekNumbers",
+					"showOutsideDays",
+					"weekStartsOn",
+					"formatMonth",
+					"formatWeekday",
+					"className",
+					"aria-label"
+				]
+			},
+			"variants": ["default"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"checkbox": {
+			"name": "Checkbox",
+			"description": "Form input component for toggling options with checked and unchecked states",
+			"category": "form",
+			"files": [
+				{
+					"name": "checkbox.tsx",
+					"path": "app/components/ui/checkbox/checkbox.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Checkbox"],
+			"props": {
+				"Checkbox": [
+					"checked",
+					"defaultChecked",
+					"onCheckedChange",
+					"size",
+					"disabled",
+					"className",
+					"id"
+				]
+			},
+			"sizes": ["sm", "md", "lg"]
+		},
+		"dialog": {
+			"name": "Dialog",
+			"description": "Modal dialog component with overlay and animations",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "dialog.tsx",
+					"path": "app/components/ui/dialog/dialog.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": [
+				"Dialog",
+				"DialogTrigger",
+				"DialogContent",
+				"DialogHeader",
+				"DialogTitle",
+				"DialogDescription",
+				"DialogFooter",
+				"DialogActions",
+				"DialogClose"
+			],
+			"props": {
+				"Dialog": ["children", "open", "onOpenChange"],
+				"DialogTrigger": ["children", "asChild", "className"],
+				"DialogContent": [
+					"children",
+					"className",
+					"size",
+					"showClose",
+					"portal"
+				],
+				"DialogHeader": ["children", "className"],
+				"DialogTitle": ["children", "className", "as"],
+				"DialogDescription": ["children", "className"],
+				"DialogFooter": ["children", "className"],
+				"DialogActions": ["children", "className"],
+				"DialogClose": ["children", "className", "asChild"]
+			},
+			"sizes": ["sm", "md", "lg", "xl"]
+		},
+		"command-k": {
+			"name": "CommandK",
+			"description": "Command palette modal (Cmd/Ctrl+K) for quick search, navigation and actions with full keyboard support",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "command-k.tsx",
+					"path": "app/components/ui/command-k/command-k.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"internalDependencies": ["dialog", "input"],
+			"exports": ["CommandK"],
+			"props": {
+				"CommandK": [
+					"items",
+					"open",
+					"defaultOpen",
+					"onOpenChange",
+					"placeholder",
+					"emptyMessage",
+					"closeOnAction",
+					"size",
+					"className",
+					"listClassName",
+					"autoFocus",
+					"hotkey",
+					"onSelect"
+				]
+			},
+			"sizes": ["sm", "md", "lg", "xl", "full"]
+		},
+		"input": {
+			"name": "Input",
+			"description": "Input component with variants, icons, and helper text",
+			"category": "form",
+			"files": [
+				{
+					"name": "input.tsx",
+					"path": "app/components/ui/input/input.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Input"],
+			"props": {
+				"Input": [
+					"variant",
+					"size",
+					"label",
+					"helperText",
+					"errorMessage",
+					"leftIcon",
+					"rightIcon",
+					"className",
+					"containerClassName",
+					"disabled"
+				]
+			},
+			"variants": ["default", "error", "success"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"popover": {
+			"name": "Popover",
+			"description": "Advanced popover component with positioning, collision detection, and animations",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "popover.tsx",
+					"path": "app/components/ui/popover/popover.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Popover", "PopoverTrigger", "PopoverContent"],
+			"props": {
+				"Popover": ["open", "defaultOpen", "onOpenChange"],
+				"PopoverTrigger": ["variant", "size", "asChild", "className"],
+				"PopoverContent": ["size", "className", "portal", "fixed"]
+			},
+			"variants": ["default"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"select": {
+			"name": "Select",
+			"description": "Custom select component with dropdown and animations",
+			"category": "form",
+			"files": [
+				{
+					"name": "select.tsx",
+					"path": "app/components/ui/select/select.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": [
+				"Select",
+				"SelectTrigger",
+				"SelectContent",
+				"SelectItem",
+				"SelectValue"
+			],
+			"props": {
+				"Select": [
+					"value",
+					"defaultValue",
+					"onValueChange",
+					"disabled",
+					"children",
+					"size",
+					"variant"
+				],
+				"SelectTrigger": ["children", "className", "size", "variant"],
+				"SelectContent": ["children", "className", "portal", "fixed"],
+				"SelectItem": ["value", "children", "className", "disabled"],
+				"SelectValue": ["placeholder", "className"]
+			},
+			"sizes": ["sm", "md", "lg"],
+			"variants": ["default", "error", "success"]
+		},
+		"skeleton": {
+			"name": "Skeleton",
+			"description": "Loading skeleton component with variants, shapes, and animations for content placeholders",
+			"category": "feedback",
+			"files": [
+				{
+					"name": "skeleton.tsx",
+					"path": "app/components/ui/skeleton/skeleton.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Skeleton"],
+			"props": {
+				"Skeleton": [
+					"variant",
+					"size",
+					"shape",
+					"width",
+					"height",
+					"lines",
+					"className"
+				]
+			},
+			"variants": ["default", "shimmer"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"spinner": {
+			"name": "Spinner",
+			"description": "Loading spinner component with variants, sizes and smooth animations",
+			"category": "feedback",
+			"files": [
+				{
+					"name": "spinner.tsx",
+					"path": "app/components/ui/spinner/spinner.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Spinner"],
+			"props": {
+				"Spinner": ["size", "variant", "className"]
+			},
+			"sizes": ["sm", "md", "lg"],
+			"variants": ["default"]
+		},
+		"switch": {
+			"name": "Switch",
+			"description": "Switch component with smooth animations for enabling or disabling options",
+			"category": "form",
+			"files": [
+				{
+					"name": "switch.tsx",
+					"path": "app/components/ui/switch/switch.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Switch"],
+			"props": {
+				"Switch": [
+					"checked",
+					"defaultChecked",
+					"onCheckedChange",
+					"size",
+					"disabled",
+					"className",
+					"id"
+				]
+			},
+			"sizes": ["sm", "md", "lg"]
+		},
+		"table": {
+			"name": "Table",
+			"description": "A powerful, highly customizable table component.",
+			"category": "data-display",
+			"files": [
+				{
+					"name": "table.tsx",
+					"path": "app/components/ui/table/table.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"internalDependencies": ["spinner"],
+			"exports": [
+				"Table",
+				"TableHeader",
+				"TableBody",
+				"TableRow",
+				"TableCell",
+				"TableFooter",
+				"TableCaption"
+			],
+			"props": {
+				"Table": [
+					"columns",
+					"data",
+					"variant",
+					"size",
+					"loading",
+					"emptyText",
+					"pagination",
+					"onSort",
+					"onFilter",
+					"className",
+					"rowKey",
+					"rowClassName"
+				],
+				"TableHeader": ["children", "className"],
+				"TableBody": ["children", "className"],
+				"TableRow": ["children", "className"],
+				"TableCell": [
+					"children",
+					"className",
+					"align",
+					"header",
+					"sortable",
+					"sortDirection",
+					"onSort",
+					"colSpan",
+					"rowSpan"
+				],
+				"TableFooter": ["children", "className"],
+				"TableCaption": ["children", "className"]
+			},
+			"variants": ["default", "striped"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"textarea": {
+			"name": "Textarea",
+			"description": "Textarea component with variants, labels, and helper text",
+			"category": "form",
+			"files": [
+				{
+					"name": "textarea.tsx",
+					"path": "app/components/ui/textarea/textarea.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Textarea"],
+			"props": {
+				"Textarea": [
+					"variant",
+					"size",
+					"label",
+					"helperText",
+					"errorMessage",
+					"successMessage",
+					"className",
+					"containerClassName",
+					"resize",
+					"disabled",
+					"rows"
+				]
+			},
+			"variants": ["default", "error", "success"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"combobox": {
+			"name": "Combobox",
+			"description": "Searchable combobox component with filtering, keyboard navigation, and accessibility",
+			"category": "form",
+			"files": [
+				{
+					"name": "combobox.tsx",
+					"path": "app/components/ui/combobox/combobox.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Combobox", "ComboboxOption"],
+			"props": {
+				"Combobox": [
+					"options",
+					"value",
+					"defaultValue",
+					"onValueChange",
+					"placeholder",
+					"searchPlaceholder",
+					"emptyMessage",
+					"disabled",
+					"size",
+					"variant",
+					"className",
+					"popoverClassName",
+					"clearable"
+				],
+				"ComboboxOption": ["value", "label", "disabled"]
+			},
+			"variants": ["default", "error", "success"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"form": {
+			"name": "Form",
+			"description": "Composable Ariakit-based form with fields, labels, validation, and actions",
+			"category": "form",
+			"files": [
+				{
+					"name": "form.tsx",
+					"path": "app/components/ui/form/form.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": [
+				"Form",
+				"FormField",
+				"FormLabel",
+				"FormControl",
+				"FormDescription",
+				"FormMessage",
+				"FormActions",
+				"FormInput",
+				"FormSubmit"
+			],
+			"props": {
+				"Form": ["children", "className", "onSubmit", "store"],
+				"FormField": ["children", "name", "error", "description", "className"],
+				"FormLabel": ["children", "className", "required"],
+				"FormControl": ["children", "className"],
+				"FormDescription": ["children", "className"],
+				"FormMessage": ["children", "className", "type"],
+				"FormActions": ["children", "className", "align"],
+				"FormInput": ["className", "...inputProps"],
+				"FormSubmit": ["children", "className", "...buttonProps"]
+			}
+		},
+		"tabs": {
+			"name": "Tabs",
+			"description": "Accessible tabs component with multiple variants, orientations, and keyboard navigation",
+			"category": "navigation",
+			"files": [
+				{
+					"name": "tabs.tsx",
+					"path": "app/components/ui/tabs/tabs.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Tabs", "TabsList", "TabsTrigger", "TabsContent"],
+			"props": {
+				"Tabs": [
+					"children",
+					"value",
+					"defaultValue",
+					"onValueChange",
+					"orientation",
+					"variant",
+					"size",
+					"className",
+					"disabled"
+				],
+				"TabsList": ["children", "className"],
+				"TabsTrigger": ["children", "value", "className", "disabled"],
+				"TabsContent": ["children", "value", "className"]
+			},
+			"variants": ["default", "pills", "underline"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"tooltip": {
+			"name": "Tooltip",
+			"description": "Tooltip component with positioning and animations",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "tooltip.tsx",
+					"path": "app/components/ui/tooltip/tooltip.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"react-dom": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": ["Tooltip", "TooltipTrigger", "TooltipContent"],
+			"props": {
+				"Tooltip": ["children", "delayDuration"],
+				"TooltipTrigger": ["children", "className"],
+				"TooltipContent": ["children", "className", "variant"]
+			}
+		},
+		"dropdown-menu": {
+			"name": "Dropdown Menu",
+			"description": "A dropdown menu component triggered on click with keyboard navigation and submenu support",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "dropdown-menu.tsx",
+					"path": "app/components/ui/dropdown-menu/dropdown-menu.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"react-dom": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": [
+				"DropdownMenu",
+				"DropdownMenuTrigger",
+				"DropdownMenuContent",
+				"DropdownMenuItem",
+				"DropdownMenuSeparator",
+				"DropdownMenuSub",
+				"DropdownMenuSubTrigger",
+				"DropdownMenuSubContent"
+			],
+			"props": {
+				"DropdownMenu": ["children", "className"],
+				"DropdownMenuTrigger": ["children", "disabled", "className"],
+				"DropdownMenuContent": ["children", "className", "size"],
+				"DropdownMenuItem": [
+					"children",
+					"disabled",
+					"inset",
+					"destructive",
+					"className",
+					"onClick"
+				],
+				"DropdownMenuSeparator": ["className"],
+				"DropdownMenuSub": ["children"],
+				"DropdownMenuSubTrigger": [
+					"children",
+					"disabled",
+					"inset",
+					"destructive",
+					"className"
+				],
+				"DropdownMenuSubContent": ["children", "className", "size"]
+			}
+		},
+		"context-menu": {
+			"name": "Context Menu",
+			"description": "A context menu component that appears on right-click with full keyboard navigation and submenu support",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "context-menu.tsx",
+					"path": "app/components/ui/context-menu/context-menu.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"react-dom": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.18"
+			},
+			"exports": [
+				"ContextMenu",
+				"ContextMenuTrigger",
+				"ContextMenuContent",
+				"ContextMenuItem",
+				"ContextMenuSeparator",
+				"ContextMenuSub",
+				"ContextMenuSubTrigger",
+				"ContextMenuSubContent"
+			],
+			"props": {
+				"ContextMenu": ["children", "className"],
+				"ContextMenuTrigger": ["children", "disabled", "className"],
+				"ContextMenuContent": ["children", "className", "size"],
+				"ContextMenuItem": [
+					"children",
+					"disabled",
+					"inset",
+					"destructive",
+					"className",
+					"onClick"
+				],
+				"ContextMenuSeparator": ["className"],
+				"ContextMenuSub": ["children"],
+				"ContextMenuSubTrigger": [
+					"children",
+					"disabled",
+					"inset",
+					"destructive",
+					"className"
+				],
+				"ContextMenuSubContent": ["children", "className", "size"]
+			}
+		},
+		"sheet": {
+			"name": "Sheet",
+			"description": "Slide-out panel component that can be triggered from any side of the screen",
+			"category": "overlay",
+			"files": [
+				{
+					"name": "sheet.tsx",
+					"path": "app/components/ui/sheet/sheet.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"react-dom": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": [
+				"Sheet",
+				"SheetTrigger",
+				"SheetContent",
+				"SheetHeader",
+				"SheetTitle",
+				"SheetDescription",
+				"SheetFooter",
+				"SheetClose"
+			],
+			"props": {
+				"Sheet": ["children", "open", "onOpenChange"],
+				"SheetTrigger": ["children", "asChild", "className"],
+				"SheetContent": [
+					"children",
+					"className",
+					"side",
+					"size",
+					"showClose",
+					"resizable",
+					"allowShrink"
+				],
+				"SheetHeader": ["children", "className"],
+				"SheetTitle": ["children", "className", "as"],
+				"SheetDescription": ["children", "className"],
+				"SheetFooter": ["children", "className"],
+				"SheetClose": ["children", "className", "asChild"]
+			},
+			"sizes": ["sm", "md", "lg", "xl", "full"]
+		},
+		"slider": {
+			"name": "Slider",
+			"description": "A customizable range slider component with variants, orientations, and accessibility support",
+			"category": "form",
+			"files": [
+				{
+					"name": "slider.tsx",
+					"path": "app/components/ui/slider/slider.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Slider"],
+			"props": {
+				"Slider": [
+					"value",
+					"defaultValue",
+					"min",
+					"max",
+					"step",
+					"disabled",
+					"size",
+					"variant",
+					"orientation",
+					"showValue",
+					"formatValue",
+					"onChange",
+					"onValueCommit",
+					"className",
+					"trackClassName",
+					"thumbClassName",
+					"aria-label",
+					"aria-labelledby"
+				]
+			},
+			"variants": ["default", "primary", "secondary"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"progress": {
+			"name": "Progress",
+			"description": "A progress indicator component with multiple variants, sizes, and animation support",
+			"category": "feedback",
+			"files": [
+				{
+					"name": "progress.tsx",
+					"path": "app/components/ui/progress/progress.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["Progress"],
+			"props": {
+				"Progress": [
+					"value",
+					"max",
+					"variant",
+					"size",
+					"showLabel",
+					"indeterminate",
+					"className",
+					"aria-label"
+				]
+			},
+			"variants": ["default", "success", "warning", "destructive"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"toast": {
+			"name": "Toast",
+			"description": "Advanced toast notification system with observer pattern, CSS transition animations, positioning, and stacking",
+			"category": "feedback",
+			"files": [
+				{
+					"name": "toast.tsx",
+					"path": "app/components/ui/toast/toast.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": ["toast", "Toaster", "ToastData", "ToastPosition"],
+			"props": {
+				"toast": [
+					"title",
+					"description",
+					"variant",
+					"position",
+					"duration",
+					"action",
+					"onClose",
+					"className"
+				],
+				"Toaster": []
+			},
+			"variants": ["default", "success", "warning", "destructive"]
+		},
+		"breadcrumb": {
+			"name": "Breadcrumb",
+			"description": "Navigation breadcrumb component showing hierarchical location with customizable separators and styling",
+			"category": "navigation",
+			"files": [
+				{
+					"name": "breadcrumb.tsx",
+					"path": "app/components/ui/breadcrumb/breadcrumb.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": [
+				"Breadcrumb",
+				"BreadcrumbList",
+				"BreadcrumbItem",
+				"BreadcrumbLink",
+				"BreadcrumbPage",
+				"BreadcrumbSeparator",
+				"BreadcrumbEllipsis"
+			],
+			"props": {
+				"Breadcrumb": ["size", "separator", "className", "children"],
+				"BreadcrumbList": ["size", "className", "children"],
+				"BreadcrumbItem": ["size", "className", "children"],
+				"BreadcrumbLink": ["variant", "size", "className", "children"],
+				"BreadcrumbPage": ["size", "className", "children"],
+				"BreadcrumbSeparator": ["size", "className", "children"],
+				"BreadcrumbEllipsis": ["className"]
+			},
+			"variants": {
+				"link": ["default", "ghost"]
+			},
+			"sizes": ["sm", "md", "lg"]
+		},
+		"file-upload": {
+			"name": "File Upload",
+			"description": "Advanced file upload component with drag & drop, progress tracking, validation, and preview support",
+			"category": "form",
+			"files": [
+				{
+					"name": "file-upload.tsx",
+					"path": "app/components/ui/file-upload/file-upload.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"internalDependencies": ["spinner"],
+			"exports": [
+				"FileUpload",
+				"FileUploadZone",
+				"FileUploadItem",
+				"FileUploadProgress",
+				"FileUploadFile"
+			],
+			"props": {
+				"FileUpload": [
+					"variant",
+					"size",
+					"multiple",
+					"accept",
+					"maxSize",
+					"maxFiles",
+					"disabled",
+					"files",
+					"onFilesChange",
+					"onUpload",
+					"showProgress",
+					"showPreview",
+					"uploadText",
+					"dragText",
+					"className"
+				],
+				"FileUploadZone": [
+					"onFilesSelect",
+					"accept",
+					"multiple",
+					"disabled",
+					"isDragOver",
+					"children"
+				],
+				"FileUploadItem": ["file", "showPreview", "onRemove", "className"],
+				"FileUploadProgress": ["progress", "className"]
+			},
+			"variants": ["default"],
+			"sizes": ["sm", "md", "lg"]
+		},
+		"chat": {
+			"name": "Chat",
+			"description": "Complete chat interface component with messages, input, avatars, timestamps, and real-time features",
+			"category": "communication",
+			"files": [
+				{
+					"name": "chat.tsx",
+					"path": "app/components/ui/chat/chat.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^18.0.0",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1"
+			},
+			"exports": [
+				"Chat",
+				"ChatHeader",
+				"ChatTitle",
+				"ChatDescription",
+				"ChatMessages",
+				"ChatMessage",
+				"ChatInput",
+				"ChatActions",
+				"TypingIndicator",
+				"Message",
+				"TypingUser"
+			],
+			"props": {
+				"Chat": [
+					"messages",
+					"onSendMessage",
+					"placeholder",
+					"disabled",
+					"autoFocus",
+					"maxLength",
+					"showTimestamps",
+					"showAvatars",
+					"allowMultiline",
+					"typingUsers",
+					"variant",
+					"className",
+					"children"
+				],
+				"ChatHeader": ["children", "className"],
+				"ChatTitle": ["children", "className", "as"],
+				"ChatDescription": ["children", "className"],
+				"ChatMessages": [
+					"messages",
+					"showTimestamps",
+					"showAvatars",
+					"typingUsers",
+					"className"
+				],
+				"ChatMessage": ["message", "showTimestamp", "showAvatar", "className"],
+				"ChatInput": [
+					"onSendMessage",
+					"placeholder",
+					"disabled",
+					"autoFocus",
+					"maxLength",
+					"allowMultiline",
+					"className"
+				],
+				"ChatActions": ["children", "className"],
+				"TypingIndicator": ["typingUsers", "showAvatars", "className"],
+				"Message": ["id", "content", "sender", "timestamp", "avatar", "name"],
+				"TypingUser": ["id", "name", "avatar"]
+			},
+			"variants": ["default"]
+		}
+	},
+	"categories": {
+		"form": {
+			"name": "Form",
+			"description": "Form input and control components",
+			"components": [
+				"button",
+				"checkbox",
+				"combobox",
+				"file-upload",
+				"form",
+				"input",
+				"select",
+				"slider",
+				"switch",
+				"textarea",
+				"calendar"
+			]
+		},
+		"data-display": {
+			"name": "Data Display",
+			"description": "Components for displaying data and content",
+			"components": ["avatar", "badge", "table"]
+		},
+		"feedback": {
+			"name": "Feedback",
+			"description": "Components for user feedback and notifications",
+			"components": ["alert", "progress", "skeleton", "spinner", "toast"]
+		},
+		"layout": {
+			"name": "Layout",
+			"description": "Components for page and content layout",
+			"components": ["accordion", "card"]
+		},
+		"overlay": {
+			"name": "Overlay",
+			"description": "Components that overlay content",
+			"components": [
+				"context-menu",
+				"dropdown-menu",
+				"dialog",
+				"popover",
+				"sheet",
+				"tooltip",
+				"command-k"
+			]
+		},
+		"navigation": {
+			"name": "Navigation",
+			"description": "Components for navigation and routing",
+			"components": ["breadcrumb", "tabs"]
+		},
+		"communication": {
+			"name": "Communication",
+			"description": "Components for messaging and real-time communication",
+			"components": ["chat"]
+		}
+	},
+	"requirements": {
+		"react": "^18.0.0",
+		"react-dom": "^18.0.0",
+		"@types/react": "^18.0.0",
+		"tailwindcss": "^4.0.0",
+		"typescript": "^5.4.0"
+	}
+}

@@ -3,9 +3,11 @@ import ora from "ora";
 import type { Config } from "../types";
 import {
 	addDesignTokensToCss,
+	checkProjectRequirements,
 	checkTailwindInstallation,
 	detectFramework,
 	fileExists,
+	getRegistry,
 	getRegistryAsset,
 	installDependencies,
 	readConfig,
@@ -112,6 +114,39 @@ export async function init(): Promise<void> {
 		}
 
 		spinner.text = `Found ${frameworkInfo} ✓`;
+
+		spinner.text = "Validating project requirements...";
+		const { requirements } = await getRegistry();
+		const requirementIssues = await checkProjectRequirements(requirements);
+		if (requirementIssues.length > 0) {
+			spinner.fail("Project requirements not satisfied!");
+			console.log(chalk.red("\nPlease update the following dependencies:"));
+			for (const issue of requirementIssues) {
+				console.log(
+					chalk.yellow(`   ${issue.name}: requires ${issue.required}`),
+				);
+				const detailLines: string[] = [];
+				detailLines.push(
+					issue.installed
+						? chalk.gray(`installed: ${issue.installed}`)
+						: chalk.gray("installed: not found"),
+				);
+				if (issue.declared) {
+					detailLines.push(chalk.gray(`declared: ${issue.declared}`));
+				}
+				if (issue.reason === "outdated") {
+					detailLines.push(chalk.gray("update to a compatible version"));
+				} else if (issue.reason === "unknown") {
+					detailLines.push(
+						chalk.gray("unable to determine installed version"),
+					);
+				}
+				for (const line of detailLines) {
+					console.log(`      ${line}`);
+				}
+			}
+			return;
+		}
 
 		const versionStr = tailwindCheck.version || "";
 		const majorMatch = versionStr.match(/[\^~]?(\d+)(?:\.|\b)/);

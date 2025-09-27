@@ -5,9 +5,11 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getInstalledDependencies = getInstalledDependencies;
 exports.installDependencies = installDependencies;
+exports.checkProjectRequirements = checkProjectRequirements;
 const fs_1 = require("fs");
 const fs_extra_1 = __importDefault(require("fs-extra"));
 const path_1 = require("path");
+const semver_1 = require("semver");
 async function getInstalledDependencies() {
     try {
         const packageJsonPath = (0, path_1.join)(process.cwd(), "package.json");
@@ -61,4 +63,52 @@ async function installDependencies(dependencies) {
             : `npm install ${depsWithVersions.join(" ")}`;
     console.log(`Installing dependencies with ${packageManager}...`);
     execSync(installCmd, { stdio: "inherit" });
+}
+async function checkProjectRequirements(requirements) {
+    const installed = await getInstalledDependencies();
+    const issues = [];
+    for (const [name, requiredRange] of Object.entries(requirements)) {
+        const installedSpec = installed[name];
+        if (!installedSpec) {
+            issues.push({
+                name,
+                required: requiredRange,
+                reason: "missing",
+            });
+            continue;
+        }
+        const modulePackagePath = (0, path_1.join)(process.cwd(), "node_modules", ...name.split("/"), "package.json");
+        if (!(0, fs_1.existsSync)(modulePackagePath)) {
+            issues.push({
+                name,
+                required: requiredRange,
+                declared: installedSpec,
+                reason: "missing",
+            });
+            continue;
+        }
+        const resolvedVersion = (0, semver_1.minVersion)(installedSpec);
+        const minimumRequired = (0, semver_1.minVersion)(requiredRange);
+        const rangeSatisfied = resolvedVersion
+            ? (0, semver_1.satisfies)(resolvedVersion, requiredRange, {
+                includePrerelease: true,
+            })
+            : false;
+        const higherVersionSatisfied = resolvedVersion && minimumRequired
+            ? (0, semver_1.gte)(resolvedVersion, minimumRequired)
+            : false;
+        if (!resolvedVersion || (!rangeSatisfied && !higherVersionSatisfied)) {
+            const normalizedVersion = resolvedVersion?.version;
+            issues.push({
+                name,
+                required: requiredRange,
+                installed: normalizedVersion,
+                declared: normalizedVersion && normalizedVersion === installedSpec
+                    ? undefined
+                    : installedSpec,
+                reason: resolvedVersion ? "outdated" : "unknown",
+            });
+        }
+    }
+    return issues;
 }
