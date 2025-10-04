@@ -21,3 +21,4 @@ export {
 
 export { rollbackInitChanges } from "./rollback.js";
 export { addDesignTokensToCss, checkTailwindInstallation } from "./tailwind.js";
+export { readCacheText, writeCacheText, getCacheDir } from "./cache.js";

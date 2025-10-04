@@ -78,7 +78,7 @@ View the top-level help output and available commands.
 
 ```json
 {
-  "$schema": "http://nocta-ui.com/registry/config-schema.json",
+  "$schema": "https://nocta-ui.com/registry/config-schema.json",
   "style": "default",
   "tailwind": {
     "css": "app/globals.css"
@@ -109,7 +109,10 @@ View the top-level help output and available commands.
 
 ## Networking Notes
 - The registry, component source files, and design tokens are hosted remotely; commands need network access.
-- If asset downloads fail, the CLI surfaces actionable error messages so you can retry.
+- Built-in caching reduces repeated network calls and allows offline fallback:
+  - Cache directory: `./.nocta-cache` (override with `NOCTA_CACHE_DIR`)
+  - Default TTLs: registry 10 minutes, assets 24 hours (override via `NOCTA_CACHE_TTL_MS`, `NOCTA_ASSET_CACHE_TTL_MS`)
+  - On network failure, the CLI falls back to the most recent cached content when available.
 
 ## Troubleshooting
 - **Missing Tailwind CSS v4**: Install or upgrade with `npm install -D tailwindcss@latest` (or the equivalent for your package manager).

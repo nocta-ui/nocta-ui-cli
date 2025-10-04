@@ -6,3 +6,4 @@ export { resolveComponentPath } from "./paths.js";
 export { getCategories, getComponent, getComponentFile, getComponentsByCategory, getComponentWithDependencies, getRegistry, getRegistryAsset, listComponents, } from "./registry.js";
 export { rollbackInitChanges } from "./rollback.js";
 export { addDesignTokensToCss, checkTailwindInstallation } from "./tailwind.js";
+export { readCacheText, writeCacheText, getCacheDir } from "./cache.js";

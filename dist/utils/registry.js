@@ -1,16 +1,36 @@
+import { readCacheText, writeCacheText } from "./cache.js";
 const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
 const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
 const COMPONENTS_MANIFEST_PATH = "components.json";
+const REGISTRY_TTL_MS = Number(process.env.NOCTA_CACHE_TTL_MS || 10 * 60 * 1000); // 10 min
+const ASSET_TTL_MS = Number(process.env.NOCTA_ASSET_CACHE_TTL_MS || 24 * 60 * 60 * 1000); // 24 h
 let componentsManifestPromise = null;
 export async function getRegistry() {
+    // Try network, cache on success; fallback to stale cache on failure
     try {
         const response = await fetch(REGISTRY_URL);
         if (!response.ok) {
             throw new Error(`Failed to fetch registry: ${response.statusText}`);
         }
-        return (await response.json());
+        const text = await response.text();
+        try {
+            await writeCacheText("registry/registry.json", text);
+        }
+        catch {
+            // non-fatal
+        }
+        return JSON.parse(text);
     }
     catch (error) {
+        const cached = await readCacheText("registry/registry.json", REGISTRY_TTL_MS, { acceptStale: true });
+        if (cached) {
+            try {
+                return JSON.parse(cached);
+            }
+            catch {
+                // fallthrough
+            }
+        }
         throw new Error(`Failed to load registry: ${error}`);
     }
 }
@@ -59,14 +79,26 @@ export async function listComponents() {
 }
 export async function getRegistryAsset(assetPath) {
     const normalizedPath = assetPath.replace(/^\/+/, "");
+    const url = `${REGISTRY_BASE_URL}/${normalizedPath}`;
+    const cacheRel = `assets/${normalizedPath}`;
     try {
-        const response = await fetch(`${REGISTRY_BASE_URL}/${normalizedPath}`);
+        const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`Failed to fetch registry asset "${assetPath}": ${response.statusText}`);
         }
-        return await response.text();
+        const text = await response.text();
+        try {
+            await writeCacheText(cacheRel, text);
+        }
+        catch {
+            // non-fatal
+        }
+        return text;
     }
     catch (error) {
+        const cached = await readCacheText(cacheRel, ASSET_TTL_MS, { acceptStale: true });
+        if (cached)
+            return cached;
         throw new Error(`Failed to load registry asset "${assetPath}": ${error}`);
     }
 }
