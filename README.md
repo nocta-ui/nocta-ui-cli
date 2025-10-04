@@ -44,6 +44,8 @@ npm run typecheck   # TypeScript type-check without emit
 ### `init`
 ```bash
 npx nocta-ui init
+# Preview without changes
+npx nocta-ui init --dry-run
 ```
 - Validates Tailwind CSS v4 and shows upgrade guidance when an older version is detected
 - Detects supported frameworks (Next.js App Router / Pages Router, Vite + React, React Router 7)
@@ -64,6 +66,8 @@ npx nocta-ui list
 ### `add <components...>`
 ```bash
 npx nocta-ui add button card dialog
+# Preview without changes
+npx nocta-ui add button --dry-run
 ```
 - Requires a valid `nocta.config.json`
 - Accepts one or multiple component names; nested dependencies are resolved automatically
@@ -72,6 +76,7 @@ npx nocta-ui add button card dialog
 - Normalizes import aliases using the prefix from `nocta.config.json` (defaults to `@/` for Next.js/Vite or `~/` for React Router 7)
 - Installs missing npm packages and reports satisfied or updated versions
 - Prints created paths plus ready-to-copy import statements, variants, and sizes
+- Supports `--dry-run` to preview all file writes and dependency changes without modifying the project
 
 ### `--help`
 ```bash

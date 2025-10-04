@@ -18,29 +18,31 @@ program
 	.version(packageJson.version);
 
 program
-	.command("init")
-	.description("Initialize your project with components config")
-	.action(async () => {
-		try {
-			await init();
-		} catch (error) {
-			console.error(chalk.red("Error:", error));
-			process.exit(1);
-		}
-	});
+    .command("init")
+    .description("Initialize your project with components config")
+    .option("--dry-run", "Preview actions without writing or installing")
+    .action(async (options: { dryRun?: boolean }) => {
+        try {
+            await init({ dryRun: Boolean(options?.dryRun) });
+        } catch (error) {
+            console.error(chalk.red("Error:", error));
+            process.exit(1);
+        }
+    });
 
 program
-	.command("add")
-	.description("Add components to your project")
-	.argument("<components...>", "component names")
-	.action(async (componentNames: string[]) => {
-		try {
-			await add(componentNames);
-		} catch (error) {
-			console.error(chalk.red("Error:", error));
-			process.exit(1);
-		}
-	});
+    .command("add")
+    .description("Add components to your project")
+    .argument("<components...>", "component names")
+    .option("--dry-run", "Preview actions without writing or installing")
+    .action(async (componentNames: string[], options: { dryRun?: boolean }) => {
+        try {
+            await add(componentNames, { dryRun: Boolean(options?.dryRun) });
+        } catch (error) {
+            console.error(chalk.red("Error:", error));
+            process.exit(1);
+        }
+    });
 
 program
 	.command("list")

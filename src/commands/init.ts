@@ -1,5 +1,6 @@
 import chalk from "chalk";
 import ora from "ora";
+import fs from "fs-extra";
 import type { Config } from "../types.js";
 import {
 	addDesignTokensToCss,
@@ -17,18 +18,19 @@ import {
 	writeConfig,
 } from "../utils/index.js";
 
-export async function init(): Promise<void> {
-	const spinner = ora("Initializing nocta-ui...").start();
-	const createdFiles: string[] = [];
+export async function init(options: { dryRun?: boolean } = {}): Promise<void> {
+    const isDryRun = Boolean(options?.dryRun);
+    const spinner = ora(`${isDryRun ? "[dry-run] " : ""}Initializing nocta-ui...`).start();
+    const createdFiles: string[] = [];
 
 	try {
-		const existingConfig = await readConfig();
-		if (existingConfig) {
-			spinner.stop();
-			console.log(chalk.yellow("nocta.config.json already exists!"));
-			console.log(chalk.gray("Your project is already initialized."));
-			return;
-		}
+        const existingConfig = await readConfig();
+        if (existingConfig) {
+            spinner.stop();
+            console.log(chalk.yellow("nocta.config.json already exists!"));
+            console.log(chalk.gray("Your project is already initialized."));
+            return;
+        }
 
 		spinner.text = "Checking Tailwind CSS installation...";
 		const tailwindCheck = await checkTailwindInstallation();
@@ -171,8 +173,8 @@ export async function init(): Promise<void> {
 			return;
 		}
 
-		spinner.stop();
-		spinner.start("Creating configuration...");
+        spinner.stop();
+        spinner.start(`${isDryRun ? "[dry-run] " : ""}Creating configuration...`);
 
 		let config: Config;
 		const aliasPrefix =
@@ -222,10 +224,17 @@ export async function init(): Promise<void> {
 			utils: aliasPrefix,
 		};
 
-		await writeConfig(config);
-		createdFiles.push("nocta.config.json");
+        if (isDryRun) {
+            console.log(chalk.blue("\n[dry-run] Would create configuration:"));
+            console.log(chalk.gray("   nocta.config.json"));
+        } else {
+            await writeConfig(config);
+            createdFiles.push("nocta.config.json");
+        }
 
-		spinner.text = "Installing required dependencies...";
+        spinner.text = isDryRun
+            ? "[dry-run] Checking required dependencies..."
+            : "Installing required dependencies...";
 		const requiredDependencies = {
 			clsx: "^2.1.1",
 			"tailwind-merge": "^3.3.1",
@@ -234,86 +243,125 @@ export async function init(): Promise<void> {
 			"@radix-ui/react-icons": "^1.3.2",
 		};
 
-		try {
-			await installDependencies(requiredDependencies);
-		} catch (error) {
-			spinner.warn(
-				"Dependencies installation failed, but you can install them manually",
-			);
-			console.log(chalk.yellow("Run: npm install clsx tailwind-merge"));
-		}
+        try {
+            if (isDryRun) {
+                console.log(chalk.blue("\n[dry-run] Would install dependencies:"));
+                Object.entries(requiredDependencies).forEach(([dep, ver]) =>
+                    console.log(chalk.gray(`   ${dep}@${ver}`)),
+                );
+            } else {
+                await installDependencies(requiredDependencies);
+            }
+        } catch (error) {
+            spinner.warn(
+                "Dependencies installation failed, but you can install them manually",
+            );
+            console.log(chalk.yellow("Run: npm install clsx tailwind-merge"));
+        }
 
 		spinner.text = "Creating utility functions...";
 		const utilsPath = `${config.aliases.utils}.ts`;
 		const utilsExists = await fileExists(utilsPath);
 		let utilsCreated = false;
 
-		if (utilsExists) {
-			spinner.stop();
-			console.log(
-				chalk.yellow(`${utilsPath} already exists - skipping creation`),
-			);
-			spinner.start();
-		} else {
-			const utilsContent = await getRegistryAsset("lib/utils.ts");
-			await writeComponentFile(utilsPath, utilsContent);
-			createdFiles.push(utilsPath);
-			utilsCreated = true;
-		}
+        if (utilsExists) {
+            spinner.stop();
+            console.log(
+                chalk.yellow(`${utilsPath} already exists - skipping creation`),
+            );
+            spinner.start();
+        } else {
+            if (isDryRun) {
+                console.log(chalk.blue("\n[dry-run] Would create utility functions:"));
+                console.log(chalk.gray(`   ${utilsPath}`));
+                utilsCreated = true;
+            } else {
+                const utilsContent = await getRegistryAsset("lib/utils.ts");
+                await writeComponentFile(utilsPath, utilsContent);
+                createdFiles.push(utilsPath);
+                utilsCreated = true;
+            }
+        }
 
 		spinner.text = "Creating base icons component...";
 		const iconsPath = resolveComponentPath("components/icons.ts", config);
 		const iconsExist = await fileExists(iconsPath);
 		let iconsCreated = false;
 
-		if (iconsExist) {
-			spinner.stop();
-			console.log(
-				chalk.yellow(`${iconsPath} already exists - skipping creation`),
-			);
-			spinner.start();
-		} else {
-			const iconsContent = await getRegistryAsset("icons/icons.ts");
-			await writeComponentFile(iconsPath, iconsContent);
-			createdFiles.push(iconsPath);
-			iconsCreated = true;
-		}
+        if (iconsExist) {
+            spinner.stop();
+            console.log(
+                chalk.yellow(`${iconsPath} already exists - skipping creation`),
+            );
+            spinner.start();
+        } else {
+            if (isDryRun) {
+                console.log(chalk.blue("\n[dry-run] Would create icons component:"));
+                console.log(chalk.gray(`   ${iconsPath}`));
+                iconsCreated = true;
+            } else {
+                const iconsContent = await getRegistryAsset("icons/icons.ts");
+                await writeComponentFile(iconsPath, iconsContent);
+                createdFiles.push(iconsPath);
+                iconsCreated = true;
+            }
+        }
 
 		spinner.text = "Adding semantic color variables...";
 		let tokensAdded = false;
 		let tokensLocation = "";
 
-		try {
-			const cssPath = config.tailwind.css;
-			const added = await addDesignTokensToCss(cssPath);
-			if (added) {
-				tokensAdded = true;
-				tokensLocation = cssPath;
-			}
-		} catch (error) {
-			spinner.warn(
-				"Design tokens installation failed, but you can add them manually",
-			);
-			console.log(
-				chalk.yellow("See documentation for manual token installation"),
-			);
-		}
+        try {
+            const cssPath = config.tailwind.css;
+            if (isDryRun) {
+                // Best-effort detection if tokens are already present without fetching registry assets
+                const fullCss = fs.existsSync(cssPath)
+                    ? await fs.readFile(cssPath, "utf8")
+                    : "";
+                const hasTokens = fullCss.includes("NOCTA CSS THEME VARIABLES");
+                if (!hasTokens) {
+                    tokensAdded = true;
+                    tokensLocation = cssPath;
+                }
+            } else {
+                const added = await addDesignTokensToCss(cssPath);
+                if (added) {
+                    tokensAdded = true;
+                    tokensLocation = cssPath;
+                }
+            }
+        } catch (error) {
+            spinner.warn(
+                "Design tokens installation failed, but you can add them manually",
+            );
+            console.log(
+                chalk.yellow("See documentation for manual token installation"),
+            );
+        }
 
-		spinner.succeed("nocta-ui initialized successfully!");
+        spinner.succeed(
+            `${isDryRun ? "[dry-run] " : ""}nocta-ui ${
+                isDryRun ? "would be initialized" : "initialized successfully!"
+            }`,
+        );
 
 		console.log(chalk.green("\nConfiguration created:"));
 		console.log(chalk.gray(`   nocta.config.json (${frameworkInfo})`));
 
-		console.log(chalk.blue("\nDependencies installed:"));
-		console.log(chalk.gray(`   clsx@${requiredDependencies.clsx}`));
-		console.log(
-			chalk.gray(`   tailwind-merge@${requiredDependencies["tailwind-merge"]}`),
-		);
-		console.log(
-			chalk.gray(
-				`   class-variance-authority@${requiredDependencies["class-variance-authority"]}`,
-			),
-		);
+        console.log(
+            chalk.blue(
+                `\n${isDryRun ? "[dry-run] Would install dependencies:" : "Dependencies installed:"}`,
+            ),
+        );
+        console.log(chalk.gray(`   clsx@${requiredDependencies.clsx}`));
+        console.log(
+            chalk.gray(`   tailwind-merge@${requiredDependencies["tailwind-merge"]}`),
+        );
+        console.log(
+            chalk.gray(
+                `   class-variance-authority@${requiredDependencies["class-variance-authority"]}`,
+            ),
+        );
 
 		if (utilsCreated) {
 			console.log(chalk.green("\nUtility functions created:"));
@@ -327,21 +375,25 @@ export async function init(): Promise<void> {
 			console.log(chalk.gray("   • Base Radix Icons mapping"));
 		}
 
-		if (tokensAdded) {
-			console.log(chalk.green("\nColor variables added:"));
-			console.log(chalk.gray(`   ${tokensLocation}`));
-			console.log(
-				chalk.gray(
-					`   • Semantic tokens (background, foreground, primary, border, etc.)`,
-				),
-			);
-		} else if (!tokensAdded && tokensLocation === "") {
-			console.log(
-				chalk.yellow(
-					"\nDesign tokens skipped (already exist or error occurred)",
-				),
-			);
-		}
+        if (tokensAdded) {
+            console.log(
+                chalk.green(
+                    `\n${isDryRun ? "[dry-run] Would add color variables:" : "Color variables added:"}`,
+                ),
+            );
+            console.log(chalk.gray(`   ${tokensLocation}`));
+            console.log(
+                chalk.gray(
+                    `   • Semantic tokens (background, foreground, primary, border, etc.)`,
+                ),
+            );
+        } else if (!tokensAdded && tokensLocation === "") {
+            console.log(
+                chalk.yellow(
+                    `\n${isDryRun ? "[dry-run] Design tokens skipped (likely already present)" : "Design tokens skipped (already exist or error occurred)"}`,
+                ),
+            );
+        }
 
 		if (isTailwindV4) {
 			console.log(chalk.blue("\nTailwind v4 detected!"));
@@ -352,8 +404,12 @@ export async function init(): Promise<void> {
 			);
 		}
 
-		console.log(chalk.blue("\nYou can now add components:"));
-		console.log(chalk.gray("   npx nocta-ui add button"));
+        console.log(
+            chalk.blue(
+                `\n${isDryRun ? "[dry-run] You could then add components:" : "You can now add components:"}`,
+            ),
+        );
+        console.log(chalk.gray("   npx nocta-ui add button"));
 	} catch (error) {
 		spinner.fail("Failed to initialize nocta-ui");
 

@@ -50,20 +50,28 @@ function normalizeComponentContent(
 	);
 }
 
-export async function add(componentNames: string[]): Promise<void> {
-	if (componentNames.length === 0) {
-		console.log(chalk.red("Please specify at least one component name"));
-		console.log(
-			chalk.yellow(
-				"Usage: npx nocta-ui add <component1> [component2] [component3] ...",
-			),
-		);
-		return;
-	}
+export async function add(
+    componentNames: string[],
+    options: { dryRun?: boolean } = {},
+): Promise<void> {
+    const isDryRun = Boolean(options?.dryRun);
+    if (componentNames.length === 0) {
+        console.log(chalk.red("Please specify at least one component name"));
+        console.log(
+            chalk.yellow(
+                "Usage: npx nocta-ui add <component1> [component2] [component3] ...",
+            ),
+        );
+        return;
+    }
 
-	const spinner = ora(
-		`Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`,
-	).start();
+    const spinner = ora(
+        `${isDryRun ? "[dry-run] " : ""}Adding ${
+            componentNames.length > 1
+                ? `${componentNames.length} components`
+                : componentNames[0]
+        }...`,
+    ).start();
 
 	try {
 		const config = await readConfig();
@@ -181,36 +189,47 @@ export async function add(componentNames: string[]): Promise<void> {
 			}
 		}
 
-		if (existingFiles.length > 0) {
-			spinner.stop();
-			console.log(chalk.yellow(`\nThe following files already exist:`));
-			existingFiles.forEach(({ targetPath }) => {
-				console.log(chalk.gray(`   ${targetPath}`));
-			});
+        if (existingFiles.length > 0) {
+            spinner.stop();
+            console.log(chalk.yellow(`\nThe following files already exist:`));
+            existingFiles.forEach(({ targetPath }) => {
+                console.log(chalk.gray(`   ${targetPath}`));
+            });
 
-			const { shouldOverwrite } = await inquirer.prompt([
-				{
-					type: "confirm",
-					name: "shouldOverwrite",
-					message: "Do you want to overwrite these files?",
-					default: false,
-				},
-			]);
+            if (isDryRun) {
+                console.log(chalk.blue("\n[dry-run] Would overwrite the files above"));
+                spinner.start(`[dry-run] Preparing file writes...`);
+            } else {
+                const { shouldOverwrite } = await inquirer.prompt([
+                    {
+                        type: "confirm",
+                        name: "shouldOverwrite",
+                        message: "Do you want to overwrite these files?",
+                        default: false,
+                    },
+                ]);
 
-			if (!shouldOverwrite) {
-				console.log(chalk.red("Installation cancelled"));
-				return;
-			}
+                if (!shouldOverwrite) {
+                    console.log(chalk.red("Installation cancelled"));
+                    return;
+                }
 
-			spinner.start(`Installing component files...`);
-		} else {
-			spinner.text = `Installing component files...`;
-		}
+                spinner.start(`Installing component files...`);
+            }
+        } else {
+            spinner.text = isDryRun
+                ? `[dry-run] Preparing file writes...`
+                : `Installing component files...`;
+        }
 
-		for (const file of allComponentFiles) {
-			const targetPath = resolveComponentPath(file.path, config);
-			await writeComponentFile(targetPath, file.content);
-		}
+        for (const file of allComponentFiles) {
+            const targetPath = resolveComponentPath(file.path, config);
+            if (isDryRun) {
+                // no-op, just preview
+            } else {
+                await writeComponentFile(targetPath, file.content);
+            }
+        }
 
 		const allDeps: Record<string, string> = {};
 		for (const component of allComponents) {
@@ -292,10 +311,14 @@ export async function add(componentNames: string[]): Promise<void> {
 					}
 				}
 
-				if (Object.keys(depsToInstall).length > 0) {
-					spinner.text = `Installing missing dependencies...`;
-					await installDependencies(depsToInstall);
-				}
+                if (Object.keys(depsToInstall).length > 0) {
+                    spinner.text = isDryRun
+                        ? `[dry-run] Checking missing dependencies...`
+                        : `Installing missing dependencies...`;
+                    if (!isDryRun) {
+                        await installDependencies(depsToInstall);
+                    }
+                }
 
 				if (skippedDeps.length > 0) {
 					console.log(chalk.green("\nDependencies already satisfied:"));
@@ -304,19 +327,27 @@ export async function add(componentNames: string[]): Promise<void> {
 					});
 				}
 
-				if (incompatibleDeps.length > 0) {
-					console.log(chalk.yellow("\nIncompatible dependencies updated:"));
-					incompatibleDeps.forEach((dep) => {
-						console.log(chalk.gray(`   ${dep}`));
-					});
-				}
+                if (incompatibleDeps.length > 0) {
+                    console.log(
+                        chalk.yellow(
+                            `\n${isDryRun ? "[dry-run] Would update incompatible dependencies:" : "Incompatible dependencies updated:"}`,
+                        ),
+                    );
+                    incompatibleDeps.forEach((dep) => {
+                        console.log(chalk.gray(`   ${dep}`));
+                    });
+                }
 
-				if (Object.keys(depsToInstall).length > 0) {
-					console.log(chalk.blue("\nDependencies installed:"));
-					Object.entries(depsToInstall).forEach(([dep, version]) => {
-						console.log(chalk.gray(`   ${dep}@${version}`));
-					});
-				}
+                if (Object.keys(depsToInstall).length > 0) {
+                    console.log(
+                        chalk.blue(
+                            `\n${isDryRun ? "[dry-run] Would install dependencies:" : "Dependencies installed:"}`,
+                        ),
+                    );
+                    Object.entries(depsToInstall).forEach(([dep, version]) => {
+                        console.log(chalk.gray(`   ${dep}@${version}`));
+                    });
+                }
 			} catch (error) {
 				const errorMessage =
 					error instanceof Error ? error.message : "Unknown error";
@@ -325,22 +356,38 @@ export async function add(componentNames: string[]): Promise<void> {
 						`[WARN] Could not check existing dependencies: ${errorMessage}`,
 					),
 				);
-				console.log(chalk.yellow("Installing all dependencies..."));
-				spinner.text = `Installing dependencies...`;
-				await installDependencies(allDeps);
+                console.log(
+                    chalk.yellow(
+                        `${isDryRun ? "[dry-run] Would install all dependencies..." : "Installing all dependencies..."}`,
+                    ),
+                );
+                spinner.text = isDryRun
+                    ? `[dry-run] Checking dependencies...`
+                    : `Installing dependencies...`;
+                if (!isDryRun) {
+                    await installDependencies(allDeps);
+                }
 
-				console.log(chalk.blue("\nDependencies installed:"));
-				Object.entries(allDeps).forEach(([dep, version]) => {
-					console.log(chalk.gray(`   ${dep}@${version}`));
-				});
-			}
-		}
+                console.log(
+                    chalk.blue(
+                        `\n${isDryRun ? "[dry-run] Would install dependencies:" : "Dependencies installed:"}`,
+                    ),
+                );
+                Object.entries(allDeps).forEach(([dep, version]) => {
+                    console.log(chalk.gray(`   ${dep}@${version}`));
+                });
+            }
+        }
 
-		const componentText =
-			componentNames.length > 1
-				? `${componentNames.length} components`
-				: componentNames[0];
-		spinner.succeed(`${componentText} added successfully!`);
+        const componentText =
+            componentNames.length > 1
+                ? `${componentNames.length} components`
+                : componentNames[0];
+        spinner.succeed(
+            `${isDryRun ? "[dry-run] " : ""}${componentText} ${
+                isDryRun ? "would be added" : "added successfully!"
+            }`,
+        );
 
 		console.log(chalk.green("\nComponents installed:"));
 		allComponentFiles.forEach((file) => {
@@ -348,7 +395,7 @@ export async function add(componentNames: string[]): Promise<void> {
 			console.log(chalk.gray(`   ${targetPath} (${file.componentName})`));
 		});
 
-		console.log(chalk.blue("\nImport and use:"));
+        console.log(chalk.blue(`\n${isDryRun ? "[dry-run] Example imports:" : "Import and use:"}`));
 		const normalizeAliasPath = (aliasPath: string): string => {
 			return aliasPath
 				.replace(/^\.\/?/, "")

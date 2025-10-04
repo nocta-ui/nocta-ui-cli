@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs8, { existsSync, readFileSync } from 'fs';
+import fs9, { existsSync, readFileSync } from 'fs';
 import chalk2 from 'chalk';
 import { Command } from 'commander';
 import inquirer from 'inquirer';
@@ -682,7 +682,8 @@ function normalizeComponentContent(content, aliasPrefix) {
     }
   );
 }
-async function add(componentNames) {
+async function add(componentNames, options = {}) {
+  const isDryRun = Boolean(options?.dryRun);
   if (componentNames.length === 0) {
     console.log(chalk2.red("Please specify at least one component name"));
     console.log(
@@ -693,7 +694,7 @@ async function add(componentNames) {
     return;
   }
   const spinner = ora(
-    `Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`
+    `${isDryRun ? "[dry-run] " : ""}Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`
   ).start();
   try {
     const config = await readConfig();
@@ -792,25 +793,33 @@ The following files already exist:`));
       existingFiles.forEach(({ targetPath }) => {
         console.log(chalk2.gray(`   ${targetPath}`));
       });
-      const { shouldOverwrite } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "shouldOverwrite",
-          message: "Do you want to overwrite these files?",
-          default: false
+      if (isDryRun) {
+        console.log(chalk2.blue("\n[dry-run] Would overwrite the files above"));
+        spinner.start(`[dry-run] Preparing file writes...`);
+      } else {
+        const { shouldOverwrite } = await inquirer.prompt([
+          {
+            type: "confirm",
+            name: "shouldOverwrite",
+            message: "Do you want to overwrite these files?",
+            default: false
+          }
+        ]);
+        if (!shouldOverwrite) {
+          console.log(chalk2.red("Installation cancelled"));
+          return;
         }
-      ]);
-      if (!shouldOverwrite) {
-        console.log(chalk2.red("Installation cancelled"));
-        return;
+        spinner.start(`Installing component files...`);
       }
-      spinner.start(`Installing component files...`);
     } else {
-      spinner.text = `Installing component files...`;
+      spinner.text = isDryRun ? `[dry-run] Preparing file writes...` : `Installing component files...`;
     }
     for (const file of allComponentFiles) {
       const targetPath = resolveComponentPath(file.path, config);
-      await writeComponentFile(targetPath, file.content);
+      if (isDryRun) {
+      } else {
+        await writeComponentFile(targetPath, file.content);
+      }
     }
     const allDeps = {};
     for (const component of allComponents) {
@@ -879,8 +888,10 @@ The following files already exist:`));
           }
         }
         if (Object.keys(depsToInstall).length > 0) {
-          spinner.text = `Installing missing dependencies...`;
-          await installDependencies(depsToInstall);
+          spinner.text = isDryRun ? `[dry-run] Checking missing dependencies...` : `Installing missing dependencies...`;
+          if (!isDryRun) {
+            await installDependencies(depsToInstall);
+          }
         }
         if (skippedDeps.length > 0) {
           console.log(chalk2.green("\nDependencies already satisfied:"));
@@ -889,13 +900,23 @@ The following files already exist:`));
           });
         }
         if (incompatibleDeps.length > 0) {
-          console.log(chalk2.yellow("\nIncompatible dependencies updated:"));
+          console.log(
+            chalk2.yellow(
+              `
+${isDryRun ? "[dry-run] Would update incompatible dependencies:" : "Incompatible dependencies updated:"}`
+            )
+          );
           incompatibleDeps.forEach((dep) => {
             console.log(chalk2.gray(`   ${dep}`));
           });
         }
         if (Object.keys(depsToInstall).length > 0) {
-          console.log(chalk2.blue("\nDependencies installed:"));
+          console.log(
+            chalk2.blue(
+              `
+${isDryRun ? "[dry-run] Would install dependencies:" : "Dependencies installed:"}`
+            )
+          );
           Object.entries(depsToInstall).forEach(([dep, version]) => {
             console.log(chalk2.gray(`   ${dep}@${version}`));
           });
@@ -907,23 +928,37 @@ The following files already exist:`));
             `[WARN] Could not check existing dependencies: ${errorMessage}`
           )
         );
-        console.log(chalk2.yellow("Installing all dependencies..."));
-        spinner.text = `Installing dependencies...`;
-        await installDependencies(allDeps);
-        console.log(chalk2.blue("\nDependencies installed:"));
+        console.log(
+          chalk2.yellow(
+            `${isDryRun ? "[dry-run] Would install all dependencies..." : "Installing all dependencies..."}`
+          )
+        );
+        spinner.text = isDryRun ? `[dry-run] Checking dependencies...` : `Installing dependencies...`;
+        if (!isDryRun) {
+          await installDependencies(allDeps);
+        }
+        console.log(
+          chalk2.blue(
+            `
+${isDryRun ? "[dry-run] Would install dependencies:" : "Dependencies installed:"}`
+          )
+        );
         Object.entries(allDeps).forEach(([dep, version]) => {
           console.log(chalk2.gray(`   ${dep}@${version}`));
         });
       }
     }
     const componentText = componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0];
-    spinner.succeed(`${componentText} added successfully!`);
+    spinner.succeed(
+      `${isDryRun ? "[dry-run] " : ""}${componentText} ${isDryRun ? "would be added" : "added successfully!"}`
+    );
     console.log(chalk2.green("\nComponents installed:"));
     allComponentFiles.forEach((file) => {
       const targetPath = resolveComponentPath(file.path, config);
       console.log(chalk2.gray(`   ${targetPath} (${file.componentName})`));
     });
-    console.log(chalk2.blue("\nImport and use:"));
+    console.log(chalk2.blue(`
+${isDryRun ? "[dry-run] Example imports:" : "Import and use:"}`));
     const normalizeAliasPath = (aliasPath) => {
       return aliasPath.replace(/^\.\/?/, "").replace(/^\/+/, "").replace(/^src\//, "").replace(/^app\//, "");
     };
@@ -978,8 +1013,9 @@ The following files already exist:`));
     throw error;
   }
 }
-async function init() {
-  const spinner = ora("Initializing nocta-ui...").start();
+async function init(options = {}) {
+  const isDryRun = Boolean(options?.dryRun);
+  const spinner = ora(`${isDryRun ? "[dry-run] " : ""}Initializing nocta-ui...`).start();
   const createdFiles = [];
   try {
     const existingConfig = await readConfig();
@@ -1114,7 +1150,7 @@ async function init() {
       return;
     }
     spinner.stop();
-    spinner.start("Creating configuration...");
+    spinner.start(`${isDryRun ? "[dry-run] " : ""}Creating configuration...`);
     let config;
     const aliasPrefix = frameworkDetection.framework === "react-router" ? "~" : "@";
     if (frameworkDetection.framework === "nextjs") {
@@ -1158,9 +1194,14 @@ async function init() {
       components: aliasPrefix,
       utils: aliasPrefix
     };
-    await writeConfig(config);
-    createdFiles.push("nocta.config.json");
-    spinner.text = "Installing required dependencies...";
+    if (isDryRun) {
+      console.log(chalk2.blue("\n[dry-run] Would create configuration:"));
+      console.log(chalk2.gray("   nocta.config.json"));
+    } else {
+      await writeConfig(config);
+      createdFiles.push("nocta.config.json");
+    }
+    spinner.text = isDryRun ? "[dry-run] Checking required dependencies..." : "Installing required dependencies...";
     const requiredDependencies = {
       clsx: "^2.1.1",
       "tailwind-merge": "^3.3.1",
@@ -1169,7 +1210,14 @@ async function init() {
       "@radix-ui/react-icons": "^1.3.2"
     };
     try {
-      await installDependencies(requiredDependencies);
+      if (isDryRun) {
+        console.log(chalk2.blue("\n[dry-run] Would install dependencies:"));
+        Object.entries(requiredDependencies).forEach(
+          ([dep, ver]) => console.log(chalk2.gray(`   ${dep}@${ver}`))
+        );
+      } else {
+        await installDependencies(requiredDependencies);
+      }
     } catch (error) {
       spinner.warn(
         "Dependencies installation failed, but you can install them manually"
@@ -1187,10 +1235,16 @@ async function init() {
       );
       spinner.start();
     } else {
-      const utilsContent = await getRegistryAsset("lib/utils.ts");
-      await writeComponentFile(utilsPath, utilsContent);
-      createdFiles.push(utilsPath);
-      utilsCreated = true;
+      if (isDryRun) {
+        console.log(chalk2.blue("\n[dry-run] Would create utility functions:"));
+        console.log(chalk2.gray(`   ${utilsPath}`));
+        utilsCreated = true;
+      } else {
+        const utilsContent = await getRegistryAsset("lib/utils.ts");
+        await writeComponentFile(utilsPath, utilsContent);
+        createdFiles.push(utilsPath);
+        utilsCreated = true;
+      }
     }
     spinner.text = "Creating base icons component...";
     const iconsPath = resolveComponentPath("components/icons.ts", config);
@@ -1203,20 +1257,35 @@ async function init() {
       );
       spinner.start();
     } else {
-      const iconsContent = await getRegistryAsset("icons/icons.ts");
-      await writeComponentFile(iconsPath, iconsContent);
-      createdFiles.push(iconsPath);
-      iconsCreated = true;
+      if (isDryRun) {
+        console.log(chalk2.blue("\n[dry-run] Would create icons component:"));
+        console.log(chalk2.gray(`   ${iconsPath}`));
+        iconsCreated = true;
+      } else {
+        const iconsContent = await getRegistryAsset("icons/icons.ts");
+        await writeComponentFile(iconsPath, iconsContent);
+        createdFiles.push(iconsPath);
+        iconsCreated = true;
+      }
     }
     spinner.text = "Adding semantic color variables...";
     let tokensAdded = false;
     let tokensLocation = "";
     try {
       const cssPath = config.tailwind.css;
-      const added = await addDesignTokensToCss(cssPath);
-      if (added) {
-        tokensAdded = true;
-        tokensLocation = cssPath;
+      if (isDryRun) {
+        const fullCss = fs4.existsSync(cssPath) ? await fs4.readFile(cssPath, "utf8") : "";
+        const hasTokens = fullCss.includes("NOCTA CSS THEME VARIABLES");
+        if (!hasTokens) {
+          tokensAdded = true;
+          tokensLocation = cssPath;
+        }
+      } else {
+        const added = await addDesignTokensToCss(cssPath);
+        if (added) {
+          tokensAdded = true;
+          tokensLocation = cssPath;
+        }
       }
     } catch (error) {
       spinner.warn(
@@ -1226,10 +1295,17 @@ async function init() {
         chalk2.yellow("See documentation for manual token installation")
       );
     }
-    spinner.succeed("nocta-ui initialized successfully!");
+    spinner.succeed(
+      `${isDryRun ? "[dry-run] " : ""}nocta-ui ${isDryRun ? "would be initialized" : "initialized successfully!"}`
+    );
     console.log(chalk2.green("\nConfiguration created:"));
     console.log(chalk2.gray(`   nocta.config.json (${frameworkInfo})`));
-    console.log(chalk2.blue("\nDependencies installed:"));
+    console.log(
+      chalk2.blue(
+        `
+${isDryRun ? "[dry-run] Would install dependencies:" : "Dependencies installed:"}`
+      )
+    );
     console.log(chalk2.gray(`   clsx@${requiredDependencies.clsx}`));
     console.log(
       chalk2.gray(`   tailwind-merge@${requiredDependencies["tailwind-merge"]}`)
@@ -1250,7 +1326,12 @@ async function init() {
       console.log(chalk2.gray("   \u2022 Base Radix Icons mapping"));
     }
     if (tokensAdded) {
-      console.log(chalk2.green("\nColor variables added:"));
+      console.log(
+        chalk2.green(
+          `
+${isDryRun ? "[dry-run] Would add color variables:" : "Color variables added:"}`
+        )
+      );
       console.log(chalk2.gray(`   ${tokensLocation}`));
       console.log(
         chalk2.gray(
@@ -1260,7 +1341,8 @@ async function init() {
     } else if (!tokensAdded && tokensLocation === "") {
       console.log(
         chalk2.yellow(
-          "\nDesign tokens skipped (already exist or error occurred)"
+          `
+${isDryRun ? "[dry-run] Design tokens skipped (likely already present)" : "Design tokens skipped (already exist or error occurred)"}`
         )
       );
     }
@@ -1272,7 +1354,12 @@ async function init() {
         )
       );
     }
-    console.log(chalk2.blue("\nYou can now add components:"));
+    console.log(
+      chalk2.blue(
+        `
+${isDryRun ? "[dry-run] You could then add components:" : "You can now add components:"}`
+      )
+    );
     console.log(chalk2.gray("   npx nocta-ui add button"));
   } catch (error) {
     spinner.fail("Failed to initialize nocta-ui");
@@ -1330,20 +1417,20 @@ async function list() {
 
 // src/cli.ts
 var packageJsonUrl = new URL("../package.json", import.meta.url);
-var packageJson = JSON.parse(fs8.readFileSync(packageJsonUrl, "utf8"));
+var packageJson = JSON.parse(fs9.readFileSync(packageJsonUrl, "utf8"));
 var program = new Command();
 program.name("nocta-ui").description("CLI for Nocta UI Components Library").version(packageJson.version);
-program.command("init").description("Initialize your project with components config").action(async () => {
+program.command("init").description("Initialize your project with components config").option("--dry-run", "Preview actions without writing or installing").action(async (options) => {
   try {
-    await init();
+    await init({ dryRun: Boolean(options?.dryRun) });
   } catch (error) {
     console.error(chalk2.red("Error:", error));
     process.exit(1);
   }
 });
-program.command("add").description("Add components to your project").argument("<components...>", "component names").action(async (componentNames) => {
+program.command("add").description("Add components to your project").argument("<components...>", "component names").option("--dry-run", "Preview actions without writing or installing").action(async (componentNames, options) => {
   try {
-    await add(componentNames);
+    await add(componentNames, { dryRun: Boolean(options?.dryRun) });
   } catch (error) {
     console.error(chalk2.red("Error:", error));
     process.exit(1);
