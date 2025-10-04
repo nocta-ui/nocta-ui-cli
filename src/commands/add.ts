@@ -2,7 +2,7 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import ora from "ora";
 import semver from "semver";
-import type { ComponentFile, ComponentFileWithContent } from "../types";
+import type { ComponentFile, ComponentFileWithContent } from "../types.js";
 import {
 	detectFramework,
 	fileExists,
@@ -13,7 +13,7 @@ import {
 	readConfig,
 	resolveComponentPath,
 	writeComponentFile,
-} from "../utils";
+} from "../utils/index.js";
 
 function joinImportPath(prefix: string, importPath: string): string {
 	const normalizedPrefix = prefix.replace(/\/+$/, "");

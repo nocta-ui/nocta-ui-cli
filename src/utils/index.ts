@@ -1,13 +1,13 @@
-export { readConfig, writeConfig } from "./config";
+export { readConfig, writeConfig } from "./config.js";
 export {
 	checkProjectRequirements,
 	getInstalledDependencies,
 	installDependencies,
-} from "./deps";
-export type { FrameworkDetection } from "./framework";
-export { detectFramework, isTypeScriptProject } from "./framework";
-export { fileExists, writeComponentFile } from "./fs";
-export { resolveComponentPath } from "./paths";
+} from "./deps.js";
+export type { FrameworkDetection } from "./framework.js";
+export { detectFramework, isTypeScriptProject } from "./framework.js";
+export { fileExists, writeComponentFile } from "./fs.js";
+export { resolveComponentPath } from "./paths.js";
 export {
 	getCategories,
 	getComponent,
@@ -17,7 +17,7 @@ export {
 	getRegistry,
 	getRegistryAsset,
 	listComponents,
-} from "./registry";
+} from "./registry.js";
 
-export { rollbackInitChanges } from "./rollback";
-export { addDesignTokensToCss, checkTailwindInstallation } from "./tailwind";
+export { rollbackInitChanges } from "./rollback.js";
+export { addDesignTokensToCss, checkTailwindInstallation } from "./tailwind.js";

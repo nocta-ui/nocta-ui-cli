@@ -1,18 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getRegistry = getRegistry;
-exports.getComponent = getComponent;
-exports.getComponentFile = getComponentFile;
-exports.listComponents = listComponents;
-exports.getRegistryAsset = getRegistryAsset;
-exports.getComponentsByCategory = getComponentsByCategory;
-exports.getCategories = getCategories;
-exports.getComponentWithDependencies = getComponentWithDependencies;
 const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
 const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
 const COMPONENTS_MANIFEST_PATH = "components.json";
 let componentsManifestPromise = null;
-async function getRegistry() {
+export async function getRegistry() {
     try {
         const response = await fetch(REGISTRY_URL);
         if (!response.ok) {
@@ -24,7 +14,7 @@ async function getRegistry() {
         throw new Error(`Failed to load registry: ${error}`);
     }
 }
-async function getComponent(name) {
+export async function getComponent(name) {
     const registry = await getRegistry();
     const component = registry.components[name];
     if (!component) {
@@ -32,7 +22,7 @@ async function getComponent(name) {
     }
     return component;
 }
-async function getComponentFile(filePath) {
+export async function getComponentFile(filePath) {
     const fileName = filePath.split("/").pop();
     if (!fileName) {
         throw new Error(`Invalid component file path: ${filePath}`);
@@ -63,11 +53,11 @@ async function getComponentsManifest() {
     }
     return componentsManifestPromise;
 }
-async function listComponents() {
+export async function listComponents() {
     const registry = await getRegistry();
     return Object.values(registry.components);
 }
-async function getRegistryAsset(assetPath) {
+export async function getRegistryAsset(assetPath) {
     const normalizedPath = assetPath.replace(/^\/+/, "");
     try {
         const response = await fetch(`${REGISTRY_BASE_URL}/${normalizedPath}`);
@@ -80,7 +70,7 @@ async function getRegistryAsset(assetPath) {
         throw new Error(`Failed to load registry asset "${assetPath}": ${error}`);
     }
 }
-async function getComponentsByCategory(category) {
+export async function getComponentsByCategory(category) {
     const registry = await getRegistry();
     const components = Object.values(registry.components);
     if (!category) {
@@ -88,11 +78,11 @@ async function getComponentsByCategory(category) {
     }
     return components.filter((component) => component.category === category);
 }
-async function getCategories() {
+export async function getCategories() {
     const registry = await getRegistry();
     return registry.categories;
 }
-async function getComponentWithDependencies(name, visited = new Set()) {
+export async function getComponentWithDependencies(name, visited = new Set()) {
     if (visited.has(name)) {
         return [];
     }

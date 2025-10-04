@@ -1,10 +1,14 @@
 {
 	"name": "nocta-ui",
-	"version": "2.8.0",
+	"version": "3.0.0",
 	"description": "CLI for Nocta UI Components Library",
+	"type": "module",
 	"main": "dist/cli.js",
 	"bin": {
 		"nocta-ui": "./dist/cli.js"
+	},
+	"engines": {
+		"node": ">=18"
 	},
 	"scripts": {
 		"build": "tsc",

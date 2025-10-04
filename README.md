@@ -10,7 +10,7 @@ Modern command line tooling for [Nocta UI](https://github.com/66HEX/nocta-ui). I
 - Respects your package manager (`npm`, `yarn`, or `pnpm`) based on lockfiles
 
 ## Requirements
-- Node.js 16+
+- Node.js 18+
 - React 18+
 - Tailwind CSS v4 installed in your project
 - Internet access when running commands (registry + assets are downloaded on demand)

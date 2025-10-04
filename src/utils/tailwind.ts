@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "fs-extra";
 
-import { getRegistryAsset } from "./registry";
+import { getRegistryAsset } from "./registry.js";
 
 const CSS_REGISTRY_PATH = "css/index.css";
 

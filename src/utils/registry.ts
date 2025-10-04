@@ -1,4 +1,4 @@
-import type { Component, Registry } from "../types";
+import type { Component, Registry } from "../types.js";
 
 const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
 const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
@@ -88,7 +88,7 @@ export async function getComponentsByCategory(
 	category?: string,
 ): Promise<Component[]> {
 	const registry = await getRegistry();
-	const components = Object.values(registry.components);
+	const components = Object.values(registry.components) as Component[];
 
 	if (!category) {
 		return components;

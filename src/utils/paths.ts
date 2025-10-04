@@ -1,5 +1,5 @@
 import path from "path";
-import type { Config } from "../types";
+import type { Config } from "../types.js";
 
 export function resolveComponentPath(
 	componentFilePath: string,

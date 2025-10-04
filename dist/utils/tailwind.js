@@ -1,23 +1,16 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.addDesignTokensToCss = addDesignTokensToCss;
-exports.checkTailwindInstallation = checkTailwindInstallation;
-const node_path_1 = __importDefault(require("node:path"));
-const fs_extra_1 = __importDefault(require("fs-extra"));
-const registry_1 = require("./registry");
+import path from "node:path";
+import fs from "fs-extra";
+import { getRegistryAsset } from "./registry.js";
 const CSS_REGISTRY_PATH = "css/index.css";
-async function addDesignTokensToCss(cssFilePath) {
-    const fullPath = node_path_1.default.join(process.cwd(), cssFilePath);
+export async function addDesignTokensToCss(cssFilePath) {
+    const fullPath = path.join(process.cwd(), cssFilePath);
     const tailwindImportPattern = /@import\s+["']tailwindcss["'];?/i;
     try {
-        const registryCss = await (0, registry_1.getRegistryAsset)(CSS_REGISTRY_PATH);
+        const registryCss = await getRegistryAsset(CSS_REGISTRY_PATH);
         const trimmedRegistryCss = registryCss.trimStart();
         let cssContent = "";
-        if (await fs_extra_1.default.pathExists(fullPath)) {
-            cssContent = await fs_extra_1.default.readFile(fullPath, "utf8");
+        if (await fs.pathExists(fullPath)) {
+            cssContent = await fs.readFile(fullPath, "utf8");
             const hasRegistryTheme = cssContent.includes("NOCTA CSS THEME VARIABLES");
             if (hasRegistryTheme) {
                 return false;
@@ -54,24 +47,24 @@ async function addDesignTokensToCss(cssFilePath) {
         else {
             newContent = `${normalizedSnippet}\n\n${cssContent}`;
         }
-        await fs_extra_1.default.ensureDir(node_path_1.default.dirname(fullPath));
-        await fs_extra_1.default.writeFile(fullPath, newContent, "utf8");
+        await fs.ensureDir(path.dirname(fullPath));
+        await fs.writeFile(fullPath, newContent, "utf8");
         return true;
     }
     catch (error) {
         throw new Error(`Failed to add design tokens to CSS file: ${error}`);
     }
 }
-async function checkTailwindInstallation() {
+export async function checkTailwindInstallation() {
     try {
-        const packageJson = await fs_extra_1.default.readJson("package.json");
+        const packageJson = await fs.readJson("package.json");
         const tailwindVersion = packageJson.dependencies?.tailwindcss ||
             packageJson.devDependencies?.tailwindcss;
         if (!tailwindVersion) {
             return { installed: false };
         }
-        const nodeModulesPath = node_path_1.default.join(process.cwd(), "node_modules", "tailwindcss");
-        const existsInNodeModules = await fs_extra_1.default.pathExists(nodeModulesPath);
+        const nodeModulesPath = path.join(process.cwd(), "node_modules", "tailwindcss");
+        const existsInNodeModules = await fs.pathExists(nodeModulesPath);
         return {
             installed: existsInNodeModules,
             version: tailwindVersion,

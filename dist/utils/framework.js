@@ -1,31 +1,24 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.isTypeScriptProject = isTypeScriptProject;
-exports.detectFramework = detectFramework;
-const fs_extra_1 = __importDefault(require("fs-extra"));
-async function isTypeScriptProject() {
+import fs from "fs-extra";
+export async function isTypeScriptProject() {
     try {
-        const packageJson = await fs_extra_1.default.readJson("package.json");
+        const packageJson = await fs.readJson("package.json");
         const dependencies = {
             ...packageJson.dependencies,
             ...packageJson.devDependencies,
         };
         const hasTypeScript = "typescript" in dependencies || "@types/node" in dependencies;
-        const hasTsConfig = await fs_extra_1.default.pathExists("tsconfig.json");
+        const hasTsConfig = await fs.pathExists("tsconfig.json");
         return hasTypeScript || hasTsConfig;
     }
     catch {
         return false;
     }
 }
-async function detectFramework() {
+export async function detectFramework() {
     try {
         let packageJson = {};
         try {
-            packageJson = (await fs_extra_1.default.readJson("package.json"));
+            packageJson = (await fs.readJson("package.json"));
         }
         catch {
             return {
@@ -51,7 +44,7 @@ async function detectFramework() {
         ];
         const foundNextConfigs = [];
         for (const config of nextConfigFiles) {
-            if (await fs_extra_1.default.pathExists(config)) {
+            if (await fs.pathExists(config)) {
                 foundNextConfigs.push(config);
             }
         }
@@ -69,7 +62,7 @@ async function detectFramework() {
                 "src/app/layout.js",
             ];
             for (const layoutPath of appRouterPaths) {
-                if (await fs_extra_1.default.pathExists(layoutPath)) {
+                if (await fs.pathExists(layoutPath)) {
                     appStructure = "app-router";
                     break;
                 }
@@ -94,7 +87,7 @@ async function detectFramework() {
                     "src/pages/index.js",
                 ];
                 for (const pagePath of pagesRouterPaths) {
-                    if (await fs_extra_1.default.pathExists(pagePath)) {
+                    if (await fs.pathExists(pagePath)) {
                         appStructure = "pages-router";
                         break;
                     }
@@ -118,7 +111,7 @@ async function detectFramework() {
         ];
         const foundReactRouterConfigs = [];
         for (const config of reactRouterConfigFiles) {
-            if (await fs_extra_1.default.pathExists(config)) {
+            if (await fs.pathExists(config)) {
                 foundReactRouterConfigs.push(config);
             }
         }
@@ -146,7 +139,7 @@ async function detectFramework() {
                 "app/entry.server.js",
             ];
             for (const indicator of reactRouterIndicators) {
-                if (await fs_extra_1.default.pathExists(indicator)) {
+                if (await fs.pathExists(indicator)) {
                     isReactRouterFramework = true;
                     break;
                 }
@@ -155,8 +148,8 @@ async function detectFramework() {
                 isReactRouterFramework = true;
             }
             if (hasRemixRunReact &&
-                !(await fs_extra_1.default.pathExists("remix.config.js")) &&
-                !(await fs_extra_1.default.pathExists("remix.config.ts"))) {
+                !(await fs.pathExists("remix.config.js")) &&
+                !(await fs.pathExists("remix.config.ts"))) {
                 isReactRouterFramework = true;
             }
             if (isReactRouterFramework) {
@@ -182,7 +175,7 @@ async function detectFramework() {
         ];
         const foundViteConfigs = [];
         for (const config of viteConfigFiles) {
-            if (await fs_extra_1.default.pathExists(config)) {
+            if (await fs.pathExists(config)) {
                 foundViteConfigs.push(config);
             }
         }
@@ -210,15 +203,15 @@ async function detectFramework() {
                     "src/index.js",
                 ];
                 for (const indicator of viteReactIndicators) {
-                    if (await fs_extra_1.default.pathExists(indicator)) {
+                    if (await fs.pathExists(indicator)) {
                         isReactProject = true;
                         break;
                     }
                 }
             }
-            if (!isReactProject && (await fs_extra_1.default.pathExists("index.html"))) {
+            if (!isReactProject && (await fs.pathExists("index.html"))) {
                 try {
-                    const htmlContent = await fs_extra_1.default.readFile("index.html", "utf8");
+                    const htmlContent = await fs.readFile("index.html", "utf8");
                     const hasReactRoot = htmlContent.includes('id="root"') ||
                         htmlContent.includes("id='root'");
                     const hasViteScript = htmlContent.includes("/src/main.") ||
@@ -248,7 +241,7 @@ async function detectFramework() {
         if (hasReact) {
             const craIndicators = [
                 "react-scripts" in dependencies,
-                await fs_extra_1.default.pathExists("public/index.html"),
+                await fs.pathExists("public/index.html"),
             ];
             if (craIndicators.some(Boolean)) {
                 return {

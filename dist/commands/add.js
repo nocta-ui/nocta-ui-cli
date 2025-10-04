@@ -1,14 +1,8 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.add = add;
-const chalk_1 = __importDefault(require("chalk"));
-const inquirer_1 = __importDefault(require("inquirer"));
-const ora_1 = __importDefault(require("ora"));
-const semver_1 = __importDefault(require("semver"));
-const utils_1 = require("../utils");
+import chalk from "chalk";
+import inquirer from "inquirer";
+import ora from "ora";
+import semver from "semver";
+import { detectFramework, fileExists, getComponentFile, getComponentWithDependencies, getInstalledDependencies, installDependencies, readConfig, resolveComponentPath, writeComponentFile, } from "../utils/index.js";
 function joinImportPath(prefix, importPath) {
     const normalizedPrefix = prefix.replace(/\/+$/, "");
     const normalizedPath = importPath.replace(/^\/+/, "");
@@ -33,23 +27,23 @@ function normalizeComponentContent(content, aliasPrefix) {
         return `${openQuote}${joinImportPath(sanitizedPrefix, normalizedPath)}${closeQuote}`;
     });
 }
-async function add(componentNames) {
+export async function add(componentNames) {
     if (componentNames.length === 0) {
-        console.log(chalk_1.default.red("Please specify at least one component name"));
-        console.log(chalk_1.default.yellow("Usage: npx nocta-ui add <component1> [component2] [component3] ..."));
+        console.log(chalk.red("Please specify at least one component name"));
+        console.log(chalk.yellow("Usage: npx nocta-ui add <component1> [component2] [component3] ..."));
         return;
     }
-    const spinner = (0, ora_1.default)(`Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`).start();
+    const spinner = ora(`Adding ${componentNames.length > 1 ? `${componentNames.length} components` : componentNames[0]}...`).start();
     try {
-        const config = await (0, utils_1.readConfig)();
+        const config = await readConfig();
         if (!config) {
             spinner.fail("Project not initialized");
-            console.log(chalk_1.default.red("nocta.config.json not found"));
-            console.log(chalk_1.default.yellow('Run "npx nocta-ui init" first'));
+            console.log(chalk.red("nocta.config.json not found"));
+            console.log(chalk.yellow('Run "npx nocta-ui init" first'));
             return;
         }
         spinner.text = "Detecting framework...";
-        const frameworkDetection = await (0, utils_1.detectFramework)();
+        const frameworkDetection = await detectFramework();
         const componentAliasPrefix = config.aliasPrefixes?.components !== undefined
             ? config.aliasPrefixes.components
             : frameworkDetection.framework === "react-router"
@@ -60,7 +54,7 @@ async function add(componentNames) {
         const processedComponents = new Set();
         for (const componentName of componentNames) {
             try {
-                const componentsWithDeps = await (0, utils_1.getComponentWithDependencies)(componentName);
+                const componentsWithDeps = await getComponentWithDependencies(componentName);
                 for (const component of componentsWithDeps) {
                     if (!processedComponents.has(component.name)) {
                         allComponentsMap.set(component.name, component);
@@ -71,8 +65,8 @@ async function add(componentNames) {
             catch (error) {
                 spinner.fail(`Failed to fetch component: ${componentName}`);
                 if (error instanceof Error && error.message.includes("not found")) {
-                    console.log(chalk_1.default.red(`Component "${componentName}" not found`));
-                    console.log(chalk_1.default.yellow('Run "npx nocta-ui list" to see available components'));
+                    console.log(chalk.red(`Component "${componentName}" not found`));
+                    console.log(chalk.yellow('Run "npx nocta-ui list" to see available components'));
                 }
                 throw error;
             }
@@ -90,14 +84,14 @@ async function add(componentNames) {
         const requestedComponentNames = requestedComponents.map((c) => c.name);
         const dependencies = allComponents.filter((c) => !requestedComponentNames.includes(c.name));
         spinner.stop();
-        console.log(chalk_1.default.blue(`Installing ${componentNames.length} component${componentNames.length > 1 ? "s" : ""}:`));
+        console.log(chalk.blue(`Installing ${componentNames.length} component${componentNames.length > 1 ? "s" : ""}:`));
         requestedComponents.forEach((component) => {
-            console.log(chalk_1.default.green(`   • ${component.name} (requested)`));
+            console.log(chalk.green(`   • ${component.name} (requested)`));
         });
         if (dependencies.length > 0) {
-            console.log(chalk_1.default.blue("\nWith internal dependencies:"));
+            console.log(chalk.blue("\nWith internal dependencies:"));
             dependencies.forEach((component) => {
-                console.log(chalk_1.default.gray(`   • ${component.name}`));
+                console.log(chalk.gray(`   • ${component.name}`));
             });
         }
         console.log("");
@@ -105,7 +99,7 @@ async function add(componentNames) {
         const allComponentFiles = [];
         for (const component of allComponents) {
             const files = await Promise.all(component.files.map(async (file) => {
-                const content = await (0, utils_1.getComponentFile)(file.path);
+                const content = await getComponentFile(file.path);
                 const normalizedContent = normalizeComponentContent(content, componentAliasPrefix);
                 return {
                     ...file,
@@ -118,18 +112,18 @@ async function add(componentNames) {
         spinner.text = `Checking existing files...`;
         const existingFiles = [];
         for (const file of allComponentFiles) {
-            const targetPath = (0, utils_1.resolveComponentPath)(file.path, config);
-            if (await (0, utils_1.fileExists)(targetPath)) {
+            const targetPath = resolveComponentPath(file.path, config);
+            if (await fileExists(targetPath)) {
                 existingFiles.push({ file, targetPath });
             }
         }
         if (existingFiles.length > 0) {
             spinner.stop();
-            console.log(chalk_1.default.yellow(`\nThe following files already exist:`));
+            console.log(chalk.yellow(`\nThe following files already exist:`));
             existingFiles.forEach(({ targetPath }) => {
-                console.log(chalk_1.default.gray(`   ${targetPath}`));
+                console.log(chalk.gray(`   ${targetPath}`));
             });
-            const { shouldOverwrite } = await inquirer_1.default.prompt([
+            const { shouldOverwrite } = await inquirer.prompt([
                 {
                     type: "confirm",
                     name: "shouldOverwrite",
@@ -138,7 +132,7 @@ async function add(componentNames) {
                 },
             ]);
             if (!shouldOverwrite) {
-                console.log(chalk_1.default.red("Installation cancelled"));
+                console.log(chalk.red("Installation cancelled"));
                 return;
             }
             spinner.start(`Installing component files...`);
@@ -147,8 +141,8 @@ async function add(componentNames) {
             spinner.text = `Installing component files...`;
         }
         for (const file of allComponentFiles) {
-            const targetPath = (0, utils_1.resolveComponentPath)(file.path, config);
-            await (0, utils_1.writeComponentFile)(targetPath, file.content);
+            const targetPath = resolveComponentPath(file.path, config);
+            await writeComponentFile(targetPath, file.content);
         }
         const allDeps = {};
         for (const component of allComponents) {
@@ -158,7 +152,7 @@ async function add(componentNames) {
         if (deps.length > 0) {
             spinner.text = `Checking dependencies...`;
             try {
-                const installedDeps = await (0, utils_1.getInstalledDependencies)();
+                const installedDeps = await getInstalledDependencies();
                 const depsToInstall = {};
                 const skippedDeps = [];
                 const incompatibleDeps = [];
@@ -169,20 +163,20 @@ async function add(componentNames) {
                             const cleanInstalledVersion = installedVersion.replace(/^v/, "");
                             const cleanRequiredVersion = requiredVersion.replace(/^[v^~]/, "");
                             if (depName === "react" || depName === "react-dom") {
-                                const installedMajor = semver_1.default.major(cleanInstalledVersion);
-                                const requiredMajor = semver_1.default.major(cleanRequiredVersion);
+                                const installedMajor = semver.major(cleanInstalledVersion);
+                                const requiredMajor = semver.major(cleanRequiredVersion);
                                 if (installedMajor >= requiredMajor) {
                                     skippedDeps.push(`${depName}@${installedVersion} (newer version compatible with ${requiredVersion})`);
                                     continue;
                                 }
                             }
-                            const satisfies = semver_1.default.satisfies(cleanInstalledVersion, requiredVersion);
+                            const satisfies = semver.satisfies(cleanInstalledVersion, requiredVersion);
                             if (satisfies) {
                                 skippedDeps.push(`${depName}@${installedVersion} (satisfies ${requiredVersion})`);
                             }
                             else {
-                                const installedMajor = semver_1.default.major(cleanInstalledVersion);
-                                const requiredMajor = semver_1.default.major(cleanRequiredVersion);
+                                const installedMajor = semver.major(cleanInstalledVersion);
+                                const requiredMajor = semver.major(cleanRequiredVersion);
                                 if (installedMajor > requiredMajor) {
                                     skippedDeps.push(`${depName}@${installedVersion} (newer major version, assuming compatibility)`);
                                 }
@@ -196,7 +190,7 @@ async function add(componentNames) {
                             const errorMessage = semverError instanceof Error
                                 ? semverError.message
                                 : "Unknown error";
-                            console.log(chalk_1.default.yellow(`[WARN] Could not compare versions for ${depName}: ${errorMessage}`));
+                            console.log(chalk.yellow(`[WARN] Could not compare versions for ${depName}: ${errorMessage}`));
                             depsToInstall[depName] = requiredVersion;
                         }
                     }
@@ -206,36 +200,36 @@ async function add(componentNames) {
                 }
                 if (Object.keys(depsToInstall).length > 0) {
                     spinner.text = `Installing missing dependencies...`;
-                    await (0, utils_1.installDependencies)(depsToInstall);
+                    await installDependencies(depsToInstall);
                 }
                 if (skippedDeps.length > 0) {
-                    console.log(chalk_1.default.green("\nDependencies already satisfied:"));
+                    console.log(chalk.green("\nDependencies already satisfied:"));
                     skippedDeps.forEach((dep) => {
-                        console.log(chalk_1.default.gray(`   ${dep}`));
+                        console.log(chalk.gray(`   ${dep}`));
                     });
                 }
                 if (incompatibleDeps.length > 0) {
-                    console.log(chalk_1.default.yellow("\nIncompatible dependencies updated:"));
+                    console.log(chalk.yellow("\nIncompatible dependencies updated:"));
                     incompatibleDeps.forEach((dep) => {
-                        console.log(chalk_1.default.gray(`   ${dep}`));
+                        console.log(chalk.gray(`   ${dep}`));
                     });
                 }
                 if (Object.keys(depsToInstall).length > 0) {
-                    console.log(chalk_1.default.blue("\nDependencies installed:"));
+                    console.log(chalk.blue("\nDependencies installed:"));
                     Object.entries(depsToInstall).forEach(([dep, version]) => {
-                        console.log(chalk_1.default.gray(`   ${dep}@${version}`));
+                        console.log(chalk.gray(`   ${dep}@${version}`));
                     });
                 }
             }
             catch (error) {
                 const errorMessage = error instanceof Error ? error.message : "Unknown error";
-                console.log(chalk_1.default.yellow(`[WARN] Could not check existing dependencies: ${errorMessage}`));
-                console.log(chalk_1.default.yellow("Installing all dependencies..."));
+                console.log(chalk.yellow(`[WARN] Could not check existing dependencies: ${errorMessage}`));
+                console.log(chalk.yellow("Installing all dependencies..."));
                 spinner.text = `Installing dependencies...`;
-                await (0, utils_1.installDependencies)(allDeps);
-                console.log(chalk_1.default.blue("\nDependencies installed:"));
+                await installDependencies(allDeps);
+                console.log(chalk.blue("\nDependencies installed:"));
                 Object.entries(allDeps).forEach(([dep, version]) => {
-                    console.log(chalk_1.default.gray(`   ${dep}@${version}`));
+                    console.log(chalk.gray(`   ${dep}@${version}`));
                 });
             }
         }
@@ -243,12 +237,12 @@ async function add(componentNames) {
             ? `${componentNames.length} components`
             : componentNames[0];
         spinner.succeed(`${componentText} added successfully!`);
-        console.log(chalk_1.default.green("\nComponents installed:"));
+        console.log(chalk.green("\nComponents installed:"));
         allComponentFiles.forEach((file) => {
-            const targetPath = (0, utils_1.resolveComponentPath)(file.path, config);
-            console.log(chalk_1.default.gray(`   ${targetPath} (${file.componentName})`));
+            const targetPath = resolveComponentPath(file.path, config);
+            console.log(chalk.gray(`   ${targetPath} (${file.componentName})`));
         });
-        console.log(chalk_1.default.blue("\nImport and use:"));
+        console.log(chalk.blue("\nImport and use:"));
         const normalizeAliasPath = (aliasPath) => {
             return aliasPath
                 .replace(/^\.\/?/, "")
@@ -272,21 +266,21 @@ async function add(componentNames) {
                     ? joinImportPath(componentAliasPrefix, basePath)
                     : componentAliasPrefix;
                 const importPath = joinImportPath(aliasBase, componentPath);
-                console.log(chalk_1.default.gray(`   import { ${component.exports.join(", ")} } from "${importPath}"; // ${component.name}`));
+                console.log(chalk.gray(`   import { ${component.exports.join(", ")} } from "${importPath}"; // ${component.name}`));
             }
         }
         const componentsWithVariants = requestedComponents.filter((c) => c.variants && c.variants.length > 0);
         if (componentsWithVariants.length > 0) {
-            console.log(chalk_1.default.blue("\nAvailable variants:"));
+            console.log(chalk.blue("\nAvailable variants:"));
             componentsWithVariants.forEach((component) => {
-                console.log(chalk_1.default.gray(`   ${component.name}: ${component.variants.join(", ")}`));
+                console.log(chalk.gray(`   ${component.name}: ${component.variants.join(", ")}`));
             });
         }
         const componentsWithSizes = requestedComponents.filter((c) => c.sizes && c.sizes.length > 0);
         if (componentsWithSizes.length > 0) {
-            console.log(chalk_1.default.blue("\nAvailable sizes:"));
+            console.log(chalk.blue("\nAvailable sizes:"));
             componentsWithSizes.forEach((component) => {
-                console.log(chalk_1.default.gray(`   ${component.name}: ${component.sizes.join(", ")}`));
+                console.log(chalk.gray(`   ${component.name}: ${component.sizes.join(", ")}`));
             });
         }
     }
@@ -296,7 +290,7 @@ async function add(componentNames) {
             : componentNames[0];
         spinner.fail(`Failed to add ${componentText}`);
         if (error instanceof Error) {
-            console.log(chalk_1.default.red(`${error.message}`));
+            console.log(chalk.red(`${error.message}`));
         }
         throw error;
     }

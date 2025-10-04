@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import chalk from "chalk";
 import { Command } from "commander";
-import { add } from "./commands/add";
-import { init } from "./commands/init";
-import { list } from "./commands/list";
+import fs from "node:fs";
+import { add } from "./commands/add.js";
+import { init } from "./commands/init.js";
+import { list } from "./commands/list.js";
 
-const packageJson = require("../package.json");
+// Read package.json in ESM context
+const packageJsonUrl = new URL("../package.json", import.meta.url);
+const packageJson = JSON.parse(fs.readFileSync(packageJsonUrl, "utf8"));
 
 const program = new Command();
 

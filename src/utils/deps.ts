@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import fs from "fs-extra";
 import { gte, minVersion, satisfies } from "semver";
 
@@ -63,8 +64,6 @@ export async function installDependencies(
 ): Promise<void> {
 	const deps = Object.keys(dependencies);
 	if (deps.length === 0) return;
-
-	const { execSync } = require("child_process");
 
 	let packageManager = "npm";
 	if (await fs.pathExists("yarn.lock")) {

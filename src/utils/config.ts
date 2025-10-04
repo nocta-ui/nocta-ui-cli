@@ -1,6 +1,6 @@
 import path from "node:path";
 import fs from "fs-extra";
-import type { Config } from "../types";
+import type { Config } from "../types.js";
 
 export async function readConfig(): Promise<Config | null> {
 	const configPath = path.join(process.cwd(), "nocta.config.json");
@@ -19,9 +19,9 @@ export async function readConfig(): Promise<Config | null> {
 export async function writeConfig(config: Config): Promise<void> {
 	const configPath = path.join(process.cwd(), "nocta.config.json");
 	const configWithSchema: Config = {
-		$schema: "http://nocta-ui.com/registry/config-schema.json",
+		$schema: "https://nocta-ui.com/registry/config-schema.json",
 		...config,
 	};
-	configWithSchema.$schema = "http://nocta-ui.com/registry/config-schema.json";
+	configWithSchema.$schema = "https://nocta-ui.com/registry/config-schema.json";
 	await fs.writeJson(configPath, configWithSchema, { spaces: 2 });
 }

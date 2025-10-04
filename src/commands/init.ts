@@ -1,6 +1,6 @@
 import chalk from "chalk";
 import ora from "ora";
-import type { Config } from "../types";
+import type { Config } from "../types.js";
 import {
 	addDesignTokensToCss,
 	checkProjectRequirements,
@@ -15,7 +15,7 @@ import {
 	rollbackInitChanges,
 	writeComponentFile,
 	writeConfig,
-} from "../utils";
+} from "../utils/index.js";
 
 export async function init(): Promise<void> {
 	const spinner = ora("Initializing nocta-ui...").start();

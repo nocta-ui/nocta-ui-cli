@@ -1,64 +1,58 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.init = init;
-const chalk_1 = __importDefault(require("chalk"));
-const ora_1 = __importDefault(require("ora"));
-const utils_1 = require("../utils");
-async function init() {
-    const spinner = (0, ora_1.default)("Initializing nocta-ui...").start();
+import chalk from "chalk";
+import ora from "ora";
+import { addDesignTokensToCss, checkProjectRequirements, checkTailwindInstallation, detectFramework, fileExists, getRegistry, getRegistryAsset, installDependencies, readConfig, resolveComponentPath, rollbackInitChanges, writeComponentFile, writeConfig, } from "../utils/index.js";
+export async function init() {
+    const spinner = ora("Initializing nocta-ui...").start();
     const createdFiles = [];
     try {
-        const existingConfig = await (0, utils_1.readConfig)();
+        const existingConfig = await readConfig();
         if (existingConfig) {
             spinner.stop();
-            console.log(chalk_1.default.yellow("nocta.config.json already exists!"));
-            console.log(chalk_1.default.gray("Your project is already initialized."));
+            console.log(chalk.yellow("nocta.config.json already exists!"));
+            console.log(chalk.gray("Your project is already initialized."));
             return;
         }
         spinner.text = "Checking Tailwind CSS installation...";
-        const tailwindCheck = await (0, utils_1.checkTailwindInstallation)();
+        const tailwindCheck = await checkTailwindInstallation();
         if (!tailwindCheck.installed) {
             spinner.fail("Tailwind CSS is required but not found!");
-            console.log(chalk_1.default.red("\nTailwind CSS is not installed or not found in node_modules"));
-            console.log(chalk_1.default.yellow("Please install Tailwind CSS first:"));
-            console.log(chalk_1.default.gray("   npm install -D tailwindcss"));
-            console.log(chalk_1.default.gray("   # or"));
-            console.log(chalk_1.default.gray("   yarn add -D tailwindcss"));
-            console.log(chalk_1.default.gray("   # or"));
-            console.log(chalk_1.default.gray("   pnpm add -D tailwindcss"));
-            console.log(chalk_1.default.blue("\nVisit https://tailwindcss.com/docs/installation for setup guide"));
+            console.log(chalk.red("\nTailwind CSS is not installed or not found in node_modules"));
+            console.log(chalk.yellow("Please install Tailwind CSS first:"));
+            console.log(chalk.gray("   npm install -D tailwindcss"));
+            console.log(chalk.gray("   # or"));
+            console.log(chalk.gray("   yarn add -D tailwindcss"));
+            console.log(chalk.gray("   # or"));
+            console.log(chalk.gray("   pnpm add -D tailwindcss"));
+            console.log(chalk.blue("\nVisit https://tailwindcss.com/docs/installation for setup guide"));
             return;
         }
         spinner.text = `Found Tailwind CSS ${tailwindCheck.version} ✓`;
         spinner.text = "Detecting project framework...";
-        const frameworkDetection = await (0, utils_1.detectFramework)();
+        const frameworkDetection = await detectFramework();
         if (frameworkDetection.framework === "unknown") {
             spinner.fail("Unsupported project structure detected!");
-            console.log(chalk_1.default.red("\nCould not detect a supported React framework"));
-            console.log(chalk_1.default.yellow("nocta-ui supports:"));
-            console.log(chalk_1.default.gray("   • Next.js (App Router or Pages Router)"));
-            console.log(chalk_1.default.gray("   • Vite + React"));
-            console.log(chalk_1.default.gray("   • React Router 7 (Framework Mode)"));
-            console.log(chalk_1.default.blue("\nDetection details:"));
-            console.log(chalk_1.default.gray(`   React dependency: ${frameworkDetection.details.hasReactDependency ? "✓" : "✗"}`));
-            console.log(chalk_1.default.gray(`   Framework config: ${frameworkDetection.details.hasConfig ? "✓" : "✗"}`));
-            console.log(chalk_1.default.gray(`   Config files found: ${frameworkDetection.details.configFiles.join(", ") || "none"}`));
+            console.log(chalk.red("\nCould not detect a supported React framework"));
+            console.log(chalk.yellow("nocta-ui supports:"));
+            console.log(chalk.gray("   • Next.js (App Router or Pages Router)"));
+            console.log(chalk.gray("   • Vite + React"));
+            console.log(chalk.gray("   • React Router 7 (Framework Mode)"));
+            console.log(chalk.blue("\nDetection details:"));
+            console.log(chalk.gray(`   React dependency: ${frameworkDetection.details.hasReactDependency ? "✓" : "✗"}`));
+            console.log(chalk.gray(`   Framework config: ${frameworkDetection.details.hasConfig ? "✓" : "✗"}`));
+            console.log(chalk.gray(`   Config files found: ${frameworkDetection.details.configFiles.join(", ") || "none"}`));
             if (!frameworkDetection.details.hasReactDependency) {
-                console.log(chalk_1.default.yellow("\nInstall React first:"));
-                console.log(chalk_1.default.gray("   npm install react react-dom"));
-                console.log(chalk_1.default.gray("   npm install -D @types/react @types/react-dom"));
+                console.log(chalk.yellow("\nInstall React first:"));
+                console.log(chalk.gray("   npm install react react-dom"));
+                console.log(chalk.gray("   npm install -D @types/react @types/react-dom"));
             }
             else {
-                console.log(chalk_1.default.yellow("\nSet up a supported framework:"));
-                console.log(chalk_1.default.blue("   Next.js:"));
-                console.log(chalk_1.default.gray("     npx create-next-app@latest"));
-                console.log(chalk_1.default.blue("   Vite + React:"));
-                console.log(chalk_1.default.gray("     npm create vite@latest . -- --template react-ts"));
-                console.log(chalk_1.default.blue("   React Router 7:"));
-                console.log(chalk_1.default.gray("     npx create-react-router@latest"));
+                console.log(chalk.yellow("\nSet up a supported framework:"));
+                console.log(chalk.blue("   Next.js:"));
+                console.log(chalk.gray("     npx create-next-app@latest"));
+                console.log(chalk.blue("   Vite + React:"));
+                console.log(chalk.gray("     npm create vite@latest . -- --template react-ts"));
+                console.log(chalk.blue("   React Router 7:"));
+                console.log(chalk.gray("     npx create-react-router@latest"));
             }
             return;
         }
@@ -75,25 +69,25 @@ async function init() {
         }
         spinner.text = `Found ${frameworkInfo} ✓`;
         spinner.text = "Validating project requirements...";
-        const { requirements } = await (0, utils_1.getRegistry)();
-        const requirementIssues = await (0, utils_1.checkProjectRequirements)(requirements);
+        const { requirements } = await getRegistry();
+        const requirementIssues = await checkProjectRequirements(requirements);
         if (requirementIssues.length > 0) {
             spinner.fail("Project requirements not satisfied!");
-            console.log(chalk_1.default.red("\nPlease update the following dependencies:"));
+            console.log(chalk.red("\nPlease update the following dependencies:"));
             for (const issue of requirementIssues) {
-                console.log(chalk_1.default.yellow(`   ${issue.name}: requires ${issue.required}`));
+                console.log(chalk.yellow(`   ${issue.name}: requires ${issue.required}`));
                 const detailLines = [];
                 detailLines.push(issue.installed
-                    ? chalk_1.default.gray(`installed: ${issue.installed}`)
-                    : chalk_1.default.gray("installed: not found"));
+                    ? chalk.gray(`installed: ${issue.installed}`)
+                    : chalk.gray("installed: not found"));
                 if (issue.declared) {
-                    detailLines.push(chalk_1.default.gray(`declared: ${issue.declared}`));
+                    detailLines.push(chalk.gray(`declared: ${issue.declared}`));
                 }
                 if (issue.reason === "outdated") {
-                    detailLines.push(chalk_1.default.gray("update to a compatible version"));
+                    detailLines.push(chalk.gray("update to a compatible version"));
                 }
                 else if (issue.reason === "unknown") {
-                    detailLines.push(chalk_1.default.gray("unable to determine installed version"));
+                    detailLines.push(chalk.gray("unable to determine installed version"));
                 }
                 for (const line of detailLines) {
                     console.log(`      ${line}`);
@@ -111,14 +105,14 @@ async function init() {
         const isTailwindV4 = major >= 4;
         if (!isTailwindV4) {
             spinner.fail("Tailwind CSS v4 is required");
-            console.log(chalk_1.default.red("\nDetected Tailwind version that is not v4: " +
+            console.log(chalk.red("\nDetected Tailwind version that is not v4: " +
                 (tailwindCheck.version || "unknown")));
-            console.log(chalk_1.default.yellow("Please upgrade to Tailwind CSS v4:"));
-            console.log(chalk_1.default.gray("   npm install -D tailwindcss@latest"));
-            console.log(chalk_1.default.gray("   # or"));
-            console.log(chalk_1.default.gray("   yarn add -D tailwindcss@latest"));
-            console.log(chalk_1.default.gray("   # or"));
-            console.log(chalk_1.default.gray("   pnpm add -D tailwindcss@latest"));
+            console.log(chalk.yellow("Please upgrade to Tailwind CSS v4:"));
+            console.log(chalk.gray("   npm install -D tailwindcss@latest"));
+            console.log(chalk.gray("   # or"));
+            console.log(chalk.gray("   yarn add -D tailwindcss@latest"));
+            console.log(chalk.gray("   # or"));
+            console.log(chalk.gray("   pnpm add -D tailwindcss@latest"));
             return;
         }
         spinner.stop();
@@ -169,7 +163,7 @@ async function init() {
             components: aliasPrefix,
             utils: aliasPrefix,
         };
-        await (0, utils_1.writeConfig)(config);
+        await writeConfig(config);
         createdFiles.push("nocta.config.json");
         spinner.text = "Installing required dependencies...";
         const requiredDependencies = {
@@ -180,39 +174,39 @@ async function init() {
             "@radix-ui/react-icons": "^1.3.2",
         };
         try {
-            await (0, utils_1.installDependencies)(requiredDependencies);
+            await installDependencies(requiredDependencies);
         }
         catch (error) {
             spinner.warn("Dependencies installation failed, but you can install them manually");
-            console.log(chalk_1.default.yellow("Run: npm install clsx tailwind-merge"));
+            console.log(chalk.yellow("Run: npm install clsx tailwind-merge"));
         }
         spinner.text = "Creating utility functions...";
         const utilsPath = `${config.aliases.utils}.ts`;
-        const utilsExists = await (0, utils_1.fileExists)(utilsPath);
+        const utilsExists = await fileExists(utilsPath);
         let utilsCreated = false;
         if (utilsExists) {
             spinner.stop();
-            console.log(chalk_1.default.yellow(`${utilsPath} already exists - skipping creation`));
+            console.log(chalk.yellow(`${utilsPath} already exists - skipping creation`));
             spinner.start();
         }
         else {
-            const utilsContent = await (0, utils_1.getRegistryAsset)("lib/utils.ts");
-            await (0, utils_1.writeComponentFile)(utilsPath, utilsContent);
+            const utilsContent = await getRegistryAsset("lib/utils.ts");
+            await writeComponentFile(utilsPath, utilsContent);
             createdFiles.push(utilsPath);
             utilsCreated = true;
         }
         spinner.text = "Creating base icons component...";
-        const iconsPath = (0, utils_1.resolveComponentPath)("components/icons.ts", config);
-        const iconsExist = await (0, utils_1.fileExists)(iconsPath);
+        const iconsPath = resolveComponentPath("components/icons.ts", config);
+        const iconsExist = await fileExists(iconsPath);
         let iconsCreated = false;
         if (iconsExist) {
             spinner.stop();
-            console.log(chalk_1.default.yellow(`${iconsPath} already exists - skipping creation`));
+            console.log(chalk.yellow(`${iconsPath} already exists - skipping creation`));
             spinner.start();
         }
         else {
-            const iconsContent = await (0, utils_1.getRegistryAsset)("icons/icons.ts");
-            await (0, utils_1.writeComponentFile)(iconsPath, iconsContent);
+            const iconsContent = await getRegistryAsset("icons/icons.ts");
+            await writeComponentFile(iconsPath, iconsContent);
             createdFiles.push(iconsPath);
             iconsCreated = true;
         }
@@ -221,7 +215,7 @@ async function init() {
         let tokensLocation = "";
         try {
             const cssPath = config.tailwind.css;
-            const added = await (0, utils_1.addDesignTokensToCss)(cssPath);
+            const added = await addDesignTokensToCss(cssPath);
             if (added) {
                 tokensAdded = true;
                 tokensLocation = cssPath;
@@ -229,48 +223,48 @@ async function init() {
         }
         catch (error) {
             spinner.warn("Design tokens installation failed, but you can add them manually");
-            console.log(chalk_1.default.yellow("See documentation for manual token installation"));
+            console.log(chalk.yellow("See documentation for manual token installation"));
         }
         spinner.succeed("nocta-ui initialized successfully!");
-        console.log(chalk_1.default.green("\nConfiguration created:"));
-        console.log(chalk_1.default.gray(`   nocta.config.json (${frameworkInfo})`));
-        console.log(chalk_1.default.blue("\nDependencies installed:"));
-        console.log(chalk_1.default.gray(`   clsx@${requiredDependencies.clsx}`));
-        console.log(chalk_1.default.gray(`   tailwind-merge@${requiredDependencies["tailwind-merge"]}`));
-        console.log(chalk_1.default.gray(`   class-variance-authority@${requiredDependencies["class-variance-authority"]}`));
+        console.log(chalk.green("\nConfiguration created:"));
+        console.log(chalk.gray(`   nocta.config.json (${frameworkInfo})`));
+        console.log(chalk.blue("\nDependencies installed:"));
+        console.log(chalk.gray(`   clsx@${requiredDependencies.clsx}`));
+        console.log(chalk.gray(`   tailwind-merge@${requiredDependencies["tailwind-merge"]}`));
+        console.log(chalk.gray(`   class-variance-authority@${requiredDependencies["class-variance-authority"]}`));
         if (utilsCreated) {
-            console.log(chalk_1.default.green("\nUtility functions created:"));
-            console.log(chalk_1.default.gray(`   ${utilsPath}`));
-            console.log(chalk_1.default.gray(`   • cn() function for className merging`));
+            console.log(chalk.green("\nUtility functions created:"));
+            console.log(chalk.gray(`   ${utilsPath}`));
+            console.log(chalk.gray(`   • cn() function for className merging`));
         }
         if (iconsCreated) {
-            console.log(chalk_1.default.green("\nIcons component created:"));
-            console.log(chalk_1.default.gray(`   ${iconsPath}`));
-            console.log(chalk_1.default.gray("   • Base Radix Icons mapping"));
+            console.log(chalk.green("\nIcons component created:"));
+            console.log(chalk.gray(`   ${iconsPath}`));
+            console.log(chalk.gray("   • Base Radix Icons mapping"));
         }
         if (tokensAdded) {
-            console.log(chalk_1.default.green("\nColor variables added:"));
-            console.log(chalk_1.default.gray(`   ${tokensLocation}`));
-            console.log(chalk_1.default.gray(`   • Semantic tokens (background, foreground, primary, border, etc.)`));
+            console.log(chalk.green("\nColor variables added:"));
+            console.log(chalk.gray(`   ${tokensLocation}`));
+            console.log(chalk.gray(`   • Semantic tokens (background, foreground, primary, border, etc.)`));
         }
         else if (!tokensAdded && tokensLocation === "") {
-            console.log(chalk_1.default.yellow("\nDesign tokens skipped (already exist or error occurred)"));
+            console.log(chalk.yellow("\nDesign tokens skipped (already exist or error occurred)"));
         }
         if (isTailwindV4) {
-            console.log(chalk_1.default.blue("\nTailwind v4 detected!"));
-            console.log(chalk_1.default.gray('   Make sure your CSS file includes @import "tailwindcss";'));
+            console.log(chalk.blue("\nTailwind v4 detected!"));
+            console.log(chalk.gray('   Make sure your CSS file includes @import "tailwindcss";'));
         }
-        console.log(chalk_1.default.blue("\nYou can now add components:"));
-        console.log(chalk_1.default.gray("   npx nocta-ui add button"));
+        console.log(chalk.blue("\nYou can now add components:"));
+        console.log(chalk.gray("   npx nocta-ui add button"));
     }
     catch (error) {
         spinner.fail("Failed to initialize nocta-ui");
         try {
-            await (0, utils_1.rollbackInitChanges)(createdFiles);
-            console.log(chalk_1.default.yellow("Rolled back partial changes"));
+            await rollbackInitChanges(createdFiles);
+            console.log(chalk.yellow("Rolled back partial changes"));
         }
         catch (rollbackError) {
-            console.log(chalk_1.default.red("Could not rollback some changes - please check manually"));
+            console.log(chalk.red("Could not rollback some changes - please check manually"));
         }
         throw error;
     }
