@@ -1,5 +1,5 @@
+import path from "node:path";
 import fs from "fs-extra";
-import path from "path";
 
 export async function fileExists(filePath: string): Promise<boolean> {
 	const fullPath = path.join(process.cwd(), filePath);

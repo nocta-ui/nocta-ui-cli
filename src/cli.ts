@@ -1,7 +1,7 @@
 #!/usr/bin/env node
+import fs from "node:fs";
 import chalk from "chalk";
 import { Command } from "commander";
-import fs from "node:fs";
 import { add } from "./commands/add.js";
 import { init } from "./commands/init.js";
 import { list } from "./commands/list.js";

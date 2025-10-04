@@ -1,4 +1,4 @@
-import path from "path";
+import path from "node:path";
 import type { Config } from "../types.js";
 
 export function resolveComponentPath(

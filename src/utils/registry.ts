@@ -5,36 +5,44 @@ const REGISTRY_BASE_URL = "https://nocta-ui.com/registry";
 const REGISTRY_URL = `${REGISTRY_BASE_URL}/registry.json`;
 const COMPONENTS_MANIFEST_PATH = "components.json";
 
-const REGISTRY_TTL_MS = Number(process.env.NOCTA_CACHE_TTL_MS || 10 * 60 * 1000); // 10 min
-const ASSET_TTL_MS = Number(process.env.NOCTA_ASSET_CACHE_TTL_MS || 24 * 60 * 60 * 1000); // 24 h
+const REGISTRY_TTL_MS = Number(
+	process.env.NOCTA_CACHE_TTL_MS || 10 * 60 * 1000,
+); // 10 min
+const ASSET_TTL_MS = Number(
+	process.env.NOCTA_ASSET_CACHE_TTL_MS || 24 * 60 * 60 * 1000,
+); // 24 h
 
 let componentsManifestPromise: Promise<Record<string, string>> | null = null;
 
 export async function getRegistry(): Promise<Registry> {
-    // Try network, cache on success; fallback to stale cache on failure
-    try {
-        const response = await fetch(REGISTRY_URL);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch registry: ${response.statusText}`);
-        }
-        const text = await response.text();
-        try {
-            await writeCacheText("registry/registry.json", text);
-        } catch {
-            // non-fatal
-        }
-        return JSON.parse(text) as Registry;
-    } catch (error) {
-        const cached = await readCacheText("registry/registry.json", REGISTRY_TTL_MS, { acceptStale: true });
-        if (cached) {
-            try {
-                return JSON.parse(cached) as Registry;
-            } catch {
-                // fallthrough
-            }
-        }
-        throw new Error(`Failed to load registry: ${error}`);
-    }
+	// Try network, cache on success; fallback to stale cache on failure
+	try {
+		const response = await fetch(REGISTRY_URL);
+		if (!response.ok) {
+			throw new Error(`Failed to fetch registry: ${response.statusText}`);
+		}
+		const text = await response.text();
+		try {
+			await writeCacheText("registry/registry.json", text);
+		} catch {
+			// non-fatal
+		}
+		return JSON.parse(text) as Registry;
+	} catch (error) {
+		const cached = await readCacheText(
+			"registry/registry.json",
+			REGISTRY_TTL_MS,
+			{ acceptStale: true },
+		);
+		if (cached) {
+			try {
+				return JSON.parse(cached) as Registry;
+			} catch {
+				// fallthrough
+			}
+		}
+		throw new Error(`Failed to load registry: ${error}`);
+	}
 }
 
 export async function getComponent(name: string): Promise<Component> {
@@ -62,10 +70,10 @@ export async function getComponentFile(filePath: string): Promise<string> {
 				`Component file "${fileName}" not found in registry manifest`,
 			);
 		}
-        return Buffer.from(encodedComponent, "base64").toString("utf8");
-    } catch (error) {
-        throw new Error(`Failed to load component file: ${error}`);
-    }
+		return Buffer.from(encodedComponent, "base64").toString("utf8");
+	} catch (error) {
+		throw new Error(`Failed to load component file: ${error}`);
+	}
 }
 
 async function getComponentsManifest(): Promise<Record<string, string>> {
@@ -89,28 +97,30 @@ export async function listComponents(): Promise<Component[]> {
 }
 
 export async function getRegistryAsset(assetPath: string): Promise<string> {
-    const normalizedPath = assetPath.replace(/^\/+/, "");
-    const url = `${REGISTRY_BASE_URL}/${normalizedPath}`;
-    const cacheRel = `assets/${normalizedPath}`;
-    try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(
-                `Failed to fetch registry asset "${assetPath}": ${response.statusText}`,
-            );
-        }
-        const text = await response.text();
-        try {
-            await writeCacheText(cacheRel, text);
-        } catch {
-            // non-fatal
-        }
-        return text;
-    } catch (error) {
-        const cached = await readCacheText(cacheRel, ASSET_TTL_MS, { acceptStale: true });
-        if (cached) return cached;
-        throw new Error(`Failed to load registry asset "${assetPath}": ${error}`);
-    }
+	const normalizedPath = assetPath.replace(/^\/+/, "");
+	const url = `${REGISTRY_BASE_URL}/${normalizedPath}`;
+	const cacheRel = `assets/${normalizedPath}`;
+	try {
+		const response = await fetch(url);
+		if (!response.ok) {
+			throw new Error(
+				`Failed to fetch registry asset "${assetPath}": ${response.statusText}`,
+			);
+		}
+		const text = await response.text();
+		try {
+			await writeCacheText(cacheRel, text);
+		} catch {
+			// non-fatal
+		}
+		return text;
+	} catch (error) {
+		const cached = await readCacheText(cacheRel, ASSET_TTL_MS, {
+			acceptStale: true,
+		});
+		if (cached) return cached;
+		throw new Error(`Failed to load registry asset "${assetPath}": ${error}`);
+	}
 }
 
 export async function getComponentsByCategory(

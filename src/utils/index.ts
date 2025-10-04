@@ -1,3 +1,4 @@
+export { getCacheDir, readCacheText, writeCacheText } from "./cache.js";
 export { readConfig, writeConfig } from "./config.js";
 export {
 	checkProjectRequirements,
@@ -18,7 +19,5 @@ export {
 	getRegistryAsset,
 	listComponents,
 } from "./registry.js";
-
 export { rollbackInitChanges } from "./rollback.js";
 export { addDesignTokensToCss, checkTailwindInstallation } from "./tailwind.js";
-export { readCacheText, writeCacheText, getCacheDir } from "./cache.js";
