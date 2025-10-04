@@ -71,25 +71,36 @@ export async function checkTailwindInstallation(): Promise<{
 }> {
 	try {
 		const packageJson = await fs.readJson("package.json");
-		const tailwindVersion =
+		const declared =
 			packageJson.dependencies?.tailwindcss ||
 			packageJson.devDependencies?.tailwindcss;
 
-		if (!tailwindVersion) {
+		if (!declared) {
 			return { installed: false };
 		}
 
-		const nodeModulesPath = path.join(
+		const pkgPath = path.join(
 			process.cwd(),
 			"node_modules",
 			"tailwindcss",
+			"package.json",
 		);
-		const existsInNodeModules = await fs.pathExists(nodeModulesPath);
 
-		return {
-			installed: existsInNodeModules,
-			version: tailwindVersion,
-		};
+		if (await fs.pathExists(pkgPath)) {
+			try {
+				const tailwindPkg = await fs.readJson(pkgPath);
+				const actualVersion = tailwindPkg?.version as string | undefined;
+				if (actualVersion) {
+					return { installed: true, version: actualVersion };
+				}
+			} catch {
+				// fall through to declared
+			}
+			// Installed but version unknown; surface declared
+			return { installed: true, version: declared };
+		}
+
+		return { installed: false };
 	} catch {
 		return { installed: false };
 	}
