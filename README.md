@@ -33,6 +33,12 @@ The CLI is distributed via npm. You can run it with `npx` (recommended) or add i
 npx nocta-ui --help
 ```
 
+Build uses tsup (ESM, Node 18 target). For local builds:
+```bash
+npm run build   # bundles to dist/cli.js
+npm run typecheck   # TypeScript type-check without emit
+```
+
 ## Commands
 
 ### `init`
@@ -120,4 +126,4 @@ View the top-level help output and available commands.
 - **Component not found**: Run `npx nocta-ui list` to confirm the component name, then try again.
 
 ## License
-ISC License
+MIT License
