@@ -1,0 +1,18 @@
+[package]
+name = "nocta_cli"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+nocta_core = { path = "../core" }
+owo-colors.workspace = true
+dialoguer.workspace = true
+indicatif.workspace = true
+once_cell.workspace = true
+regex.workspace = true
+
+[[bin]]
+name = "nocta-ui"
+path = "src/main.rs"
