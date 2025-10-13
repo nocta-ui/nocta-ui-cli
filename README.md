@@ -1,10 +1,11 @@
 # Nocta UI CLI
 
-> **Note:** This CLI is built with Rust for performance and reliability, with a lightweight JavaScript wrapper for seamless npm distribution.
+> **Note:** This CLI is built with Rust for blazing-fast performance and reliability, with a lightweight JavaScript wrapper for seamless npm distribution.
 
 Modern command line tooling for [Nocta UI](https://github.com/nocta-ui/nocta-ui). Initialize projects, browse the component registry, and scaffold UI files without leaving your terminal.
 
 ## Features
+- **Lightning-fast execution** powered by a Rust core with minimal JavaScript overhead
 - Auto-detects Next.js, Vite + React, and React Router 7 (framework mode)
 - Creates `nocta.config.json`, injects Tailwind v4 tokens, and sets up shared utilities
 - Fetches live component metadata from the Nocta registry
@@ -20,34 +21,34 @@ Modern command line tooling for [Nocta UI](https://github.com/nocta-ui/nocta-ui)
 ## Quick Start
 ```bash
 # Initialize your project (no global install required)
-npx nocta-ui init
+npx @nocta-ui/cli init
 
 # Browse available components
-npx nocta-ui list
+npx @nocta-ui/cli list
 
 # Add components (installs dependencies and files)
-npx nocta-ui add button card badge
+npx @nocta-ui/cli add button card badge
 ```
 
 ## Installation
 The CLI is distributed via npm. You can run it with `npx` (recommended) or add it to the `scripts` section of your project.
 ```bash
-npx nocta-ui --help
+npx @nocta-ui/cli --help
 ```
 
-Build uses tsup (ESM, Node 18 target). For local builds:
+Prefer a global install? Install once and invoke it anywhere with the `nocta-ui` command.
 ```bash
-npm run build   # bundles to dist/cli.js
-npm run typecheck   # TypeScript type-check without emit
+npm install -g @nocta-ui/cli
+nocta-ui --help
 ```
 
 ## Commands
 
 ### `init`
 ```bash
-npx nocta-ui init
+npx @nocta-ui/cli init
 # Preview without changes
-npx nocta-ui init --dry-run
+npx @nocta-ui/cli init --dry-run
 ```
 - Validates Tailwind CSS v4 and shows upgrade guidance when an older version is detected
 - Detects supported frameworks (Next.js App Router / Pages Router, Vite + React, React Router 7)
@@ -59,17 +60,17 @@ npx nocta-ui init --dry-run
 
 ### `list`
 ```bash
-npx nocta-ui list
+npx @nocta-ui/cli list
 ```
 - Loads categories and component descriptions from `https://nocta-ui.com/registry`
 - Displays variants and sizes when provided
-- Reminds you to install components with `npx nocta-ui add <name>`
+- Reminds you to install components with `npx @nocta-ui/cli add <name>`
 
 ### `add <components...>`
 ```bash
-npx nocta-ui add button card dialog
+npx @nocta-ui/cli add button card dialog
 # Preview without changes
-npx nocta-ui add button --dry-run
+npx @nocta-ui/cli add button --dry-run
 ```
 - Requires a valid `nocta.config.json`
 - Accepts one or multiple component names; nested dependencies are resolved automatically
@@ -82,9 +83,13 @@ npx nocta-ui add button --dry-run
 
 ### `--help`
 ```bash
-npx nocta-ui --help
+npx @nocta-ui/cli --help
 ```
 View the top-level help output and available commands.
+
+## Performance
+
+The Nocta CLI delivers near-instant command execution thanks to its **Rust-powered core**. File operations, dependency resolution, and registry parsing run at native speeds, while a thin JavaScript wrapper ensures seamless integration with npm and Node.js tooling. Whether you're initializing a project or installing dozens of components, you'll experience the speed of a compiled binary with the convenience of an npm package.
 
 ## Configuration
 `nocta.config.json` governs where files are written and which CSS entry receives design tokens.
@@ -130,7 +135,7 @@ View the top-level help output and available commands.
 ## Troubleshooting
 - **Missing Tailwind CSS v4**: Install or upgrade with `npm install -D tailwindcss@latest` (or the equivalent for your package manager).
 - **Unsupported framework detected**: Ensure you're using one of the supported frameworks or adjust your project structure so detection can succeed.
-- **Component not found**: Run `npx nocta-ui list` to confirm the component name, then try again.
+- **Component not found**: Run `npx @nocta-ui/cli list` to confirm the component name, then try again.
 
 ## License
 MIT License
