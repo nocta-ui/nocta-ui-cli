@@ -1,7 +1,7 @@
 {
   "name": "@nocta-ui/cli",
   "version": "0.1.0",
-  "description": "JavaScript wrapper for the Nocta UI CLI",
+  "description": "CLI for Nocta UI Components Library",
   "license": "MIT",
   "bin": {
     "nocta-ui": "./bin/nocta-ui.js"
