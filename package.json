@@ -1,0 +1,14 @@
+{
+  "name": "nocta-ui-cli-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Monorepo for Nocta UI CLI and npm wrapper",
+  "license": "MIT",
+  "workspaces": [
+    "js"
+  ],
+  "scripts": {
+    "build:rust": "cargo build --release",
+    "clean": "cargo clean"
+  }
+}
