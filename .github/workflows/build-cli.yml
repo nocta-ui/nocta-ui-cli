@@ -56,6 +56,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Configure Linux ARM64 toolchain
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+          echo "AR_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc-ar" >> $GITHUB_ENV
+          echo "CFLAGS_aarch64_unknown_linux_gnu=-march=armv8-a" >> $GITHUB_ENV
+
       - name: Build CLI binary
         run: cargo build --release --package nocta_cli --target ${{ matrix.target }}
 
