@@ -244,6 +244,7 @@ fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkD
     println!("{}", "   • Next.js (App Router or Pages Router)".dimmed());
     println!("{}", "   • Vite + React".dimmed());
     println!("{}", "   • React Router 7 (Framework Mode)".dimmed());
+    println!("{}", "   • TanStack Start".dimmed());
     println!("{}", "Detection details:".blue());
     println!(
         "{}",
@@ -299,6 +300,8 @@ fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkD
         );
         println!("{}", "   React Router 7:".blue());
         println!("{}", "     npx create-react-router@latest".dimmed());
+        println!("{}", "   TanStack Start:".blue());
+        println!("{}", "     npm create tanstack@latest".dimmed());
     }
 }
 
@@ -442,6 +445,10 @@ fn framework_info(detection: &nocta_core::framework::FrameworkDetection) -> Stri
             "React Router {} (Framework Mode)",
             detection.version.clone().unwrap_or_default()
         ),
+        FrameworkKind::TanstackStart => format!(
+            "TanStack Start {}",
+            detection.version.clone().unwrap_or_default()
+        ),
         FrameworkKind::Unknown => "Unknown".into(),
     }
 }
@@ -499,6 +506,39 @@ fn build_config(detection: &nocta_core::framework::FrameworkDetection) -> Result
             },
             alias_prefixes: None,
         }),
+        FrameworkKind::TanstackStart => {
+            let css_candidates = [
+                "src/styles.css",
+                "src/style.css",
+                "src/global.css",
+                "src/globals.css",
+                "src/index.css",
+                "src/app.css",
+                "app/app.css",
+                "app/styles.css",
+                "app/globals.css",
+                "app/global.css",
+                "app/tailwind.css",
+            ];
+            let css_path = css_candidates
+                .iter()
+                .find(|path| file_exists(path))
+                .copied()
+                .unwrap_or("src/styles.css");
+
+            Ok(Config {
+                schema: None,
+                style: "default".into(),
+                tailwind: TailwindConfig {
+                    css: css_path.into(),
+                },
+                aliases: Aliases {
+                    components: "src/components/ui".into(),
+                    utils: "src/lib/utils".into(),
+                },
+                alias_prefixes: None,
+            })
+        }
         FrameworkKind::Unknown => Err(anyhow!("Unsupported framework configuration")),
     }
 }

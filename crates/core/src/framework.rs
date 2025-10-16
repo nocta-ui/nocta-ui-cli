@@ -9,6 +9,7 @@ pub enum FrameworkKind {
     NextJs,
     ViteReact,
     ReactRouter,
+    TanstackStart,
     Unknown,
 }
 
@@ -81,10 +82,7 @@ fn find_existing_files(files: &[&str]) -> Vec<String> {
         .collect()
 }
 
-fn detect_nextjs(
-    deps: &HashMap<String, String>,
-    has_react: bool,
-) -> Option<FrameworkDetection> {
+fn detect_nextjs(deps: &HashMap<String, String>, has_react: bool) -> Option<FrameworkDetection> {
     let next_config_files = [
         "next.config.js",
         "next.config.mjs",
@@ -188,10 +186,7 @@ fn detect_react_router(
         is_framework = true;
     }
 
-    if has_remix_run_react
-        && !path_exists("remix.config.js")
-        && !path_exists("remix.config.ts")
-    {
+    if has_remix_run_react && !path_exists("remix.config.js") && !path_exists("remix.config.ts") {
         is_framework = true;
     }
 
@@ -208,8 +203,9 @@ fn detect_react_router(
             details: FrameworkDetails {
                 has_config: !found_configs.is_empty(),
                 has_react_dependency: has_react,
-                has_framework_dependency:
-                    has_react_router || has_react_router_dev || has_remix_run_react,
+                has_framework_dependency: has_react_router
+                    || has_react_router_dev
+                    || has_remix_run_react,
                 app_structure: None,
                 config_files: found_configs,
             },
@@ -217,6 +213,113 @@ fn detect_react_router(
     }
 
     None
+}
+
+fn detect_tanstack_start(
+    deps: &HashMap<String, String>,
+    has_react: bool,
+) -> Option<FrameworkDetection> {
+    let config_files = [
+        "start.config.ts",
+        "start.config.js",
+        "start.config.mts",
+        "start.config.mjs",
+        "start.config.cjs",
+    ];
+    let start_dep_names = [
+        "@tanstack/start",
+        "@tanstack/start-client",
+        "@tanstack/start-server",
+        "@tanstack/start-router",
+        "@tanstack/react-start",
+    ];
+    let router_dep_names = [
+        "@tanstack/react-router",
+        "@tanstack/react-router-server",
+        "@tanstack/react-router-devtools",
+        "@tanstack/react-router-start",
+        "@tanstack/router",
+        "@tanstack/router-server",
+        "@tanstack/router-devtools",
+        "@tanstack/router-vite",
+        "@tanstack/react-router-vite",
+        "@tanstack/router-plugin",
+        "@tanstack/react-router-ssr-query",
+    ];
+    let has_start_dep = start_dep_names
+        .iter()
+        .any(|name| deps.contains_key(*name));
+    let has_router_dep = router_dep_names
+        .iter()
+        .any(|name| deps.contains_key(*name));
+
+    let found_configs = find_existing_files(&config_files);
+    let indicator_files = [
+        "app/routes/__root.tsx",
+        "app/routes/__root.ts",
+        "app/routes/__root.jsx",
+        "app/routes/__root.js",
+        "app/routes/__root.client.tsx",
+        "app/routes/__root.client.ts",
+        "app/routes/__root.client.jsx",
+        "app/routes/__root.client.js",
+        "app/entry-client.tsx",
+        "app/entry-client.ts",
+        "app/entry-client.jsx",
+        "app/entry-client.js",
+        "app/entry-server.tsx",
+        "app/entry-server.ts",
+        "app/entry-server.jsx",
+        "app/entry-server.js",
+        "src/routes/__root.tsx",
+        "src/routes/__root.ts",
+        "src/routes/__root.jsx",
+        "src/routes/__root.js",
+        "src/routes/__root.client.tsx",
+        "src/routes/__root.client.ts",
+        "src/routes/__root.client.jsx",
+        "src/routes/__root.client.js",
+        "src/entry-client.tsx",
+        "src/entry-client.ts",
+        "src/entry-client.jsx",
+        "src/entry-client.js",
+        "src/entry-server.tsx",
+        "src/entry-server.ts",
+        "src/entry-server.jsx",
+        "src/entry-server.js",
+        "src/router.tsx",
+        "src/router.ts",
+    ];
+
+    let has_route_indicators = indicator_files.iter().any(|path| path_exists(path));
+    let has_routes_dir =
+        Path::new("app/routes").is_dir() || Path::new("src/routes").is_dir();
+    let has_structure = !found_configs.is_empty() || has_route_indicators || has_routes_dir;
+
+    if !(has_start_dep || (has_structure && has_router_dep)) || !has_react {
+        return None;
+    }
+
+    let version = deps
+        .get("@tanstack/start")
+        .or_else(|| deps.get("@tanstack/start-client"))
+        .or_else(|| deps.get("@tanstack/start-server"))
+        .or_else(|| deps.get("@tanstack/react-router"))
+        .or_else(|| deps.get("@tanstack/react-start"))
+        .or_else(|| deps.get("@tanstack/router"))
+        .cloned();
+
+    Some(FrameworkDetection {
+        framework: FrameworkKind::TanstackStart,
+        version,
+        details: FrameworkDetails {
+            has_config: !found_configs.is_empty(),
+            has_react_dependency: has_react,
+            has_framework_dependency: has_start_dep || has_router_dep,
+            app_structure: None,
+            config_files: found_configs,
+        },
+    })
 }
 
 fn detect_vite_react(
@@ -236,8 +339,8 @@ fn detect_vite_react(
         return None;
     }
 
-    let has_vite_plugin = deps.contains_key("@vitejs/plugin-react")
-        || deps.contains_key("@vitejs/plugin-react-swc");
+    let has_vite_plugin =
+        deps.contains_key("@vitejs/plugin-react") || deps.contains_key("@vitejs/plugin-react-swc");
 
     let mut is_react_project = has_vite_plugin;
 
@@ -322,6 +425,10 @@ pub fn detect_framework() -> FrameworkDetection {
     }
 
     if let Some(detection) = detect_react_router(&deps, has_react) {
+        return detection;
+    }
+
+    if let Some(detection) = detect_tanstack_start(&deps, has_react) {
         return detection;
     }
 

@@ -114,6 +114,7 @@ The Nocta CLI delivers near-instant command execution thanks to its **Rust-power
 - Next.js App Router defaults to `app/globals.css`, `components/ui`, and `lib/utils`
 - Next.js Pages Router uses `styles/globals.css`
 - Vite + React uses `src/App.css`, `src/components/ui`, and `src/lib/utils`
+- Tanstack Start uses `src/styles.css`, `src/components/ui`, and `src/lib/utils`
 - React Router 7 uses `app/app.css`, `app/components/ui`, and `app/lib/utils`
 - Update `aliases.components` if you want files placed elsewhere; the CLI always writes into `<alias>/`
 - Update `aliasPrefixes` if you use custom import aliases (for example `@ui` instead of `@/components`).
