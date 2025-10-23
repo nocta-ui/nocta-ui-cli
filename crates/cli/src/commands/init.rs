@@ -83,10 +83,13 @@ fn init_inner(
     let requirements = client.registry_requirements()?;
     let requirement_issues = check_project_requirements(&requirements)?;
     if !requirement_issues.is_empty() {
-        pb.finish_and_clear();
-        print_requirement_issues(&requirement_issues);
-        return Ok(());
+        pb.suspend(|| {
+            print_requirement_issues(&requirement_issues, dry_run);
+        });
     }
+
+    let required_dependencies: BTreeMap<String, String> =
+        requirements.into_iter().collect();
 
     let is_tailwind_v4 = tailwind_v4(&tailwind);
     if !is_tailwind_v4 {
@@ -111,7 +114,6 @@ fn init_inner(
         created_paths.push(PathBuf::from("nocta.config.json"));
     }
 
-    let required_dependencies = required_dependencies();
     if dry_run {
         pb.set_message(format!(
             "{}[dry-run] Checking required dependencies...",
@@ -307,9 +309,19 @@ fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkD
     }
 }
 
-fn print_requirement_issues(issues: &[RequirementIssue]) {
-    println!("{}", "Project requirements not satisfied!".red());
-    println!("{}", "Please update the following dependencies:".red());
+fn print_requirement_issues(issues: &[RequirementIssue], dry_run: bool) {
+    println!(
+        "{}",
+        "Project dependencies are missing or out of date.".yellow()
+    );
+    if dry_run {
+        println!(
+            "{}",
+            "[dry-run] They would be installed automatically:".blue()
+        );
+    } else {
+        println!("{}", "Installing required versions...".blue());
+    }
     for issue in issues {
         println!(
             "{}",
@@ -325,12 +337,17 @@ fn print_requirement_issues(issues: &[RequirementIssue]) {
         }
         match issue.reason {
             RequirementIssueReason::Outdated => {
-                println!("{}", "      update to a compatible version".dimmed());
+                println!("{}", "      will be updated to a compatible version".dimmed());
             }
             RequirementIssueReason::Unknown => {
-                println!("{}", "      unable to determine installed version".dimmed());
+                println!(
+                    "{}",
+                    "      unable to determine installed version, forcing install".dimmed()
+                );
             }
-            RequirementIssueReason::Missing => {}
+            RequirementIssueReason::Missing => {
+                println!("{}", "      will be installed".dimmed());
+            }
         }
     }
 }
@@ -371,16 +388,6 @@ fn print_tailwind_v4_required(check: &TailwindCheck) {
     println!("{}", "   pnpm add -D tailwindcss@latest".dimmed());
     println!("{}", "   # or".dimmed());
     println!("{}", "   bun add -D tailwindcss@latest".dimmed());
-}
-
-fn required_dependencies() -> BTreeMap<String, String> {
-    BTreeMap::from([
-        ("@ariakit/react".to_string(), "^0.4.18".to_string()),
-        ("@radix-ui/react-icons".to_string(), "^1.3.2".to_string()),
-        ("class-variance-authority".to_string(), "^0.7.1".to_string()),
-        ("clsx".to_string(), "^2.1.1".to_string()),
-        ("tailwind-merge".to_string(), "^3.3.1".to_string()),
-    ])
 }
 
 fn ensure_registry_asset(
