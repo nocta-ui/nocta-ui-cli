@@ -231,6 +231,8 @@ fn print_tailwind_missing_message(check: &TailwindCheck) {
     println!("{}", "   yarn add -D tailwindcss".dimmed());
     println!("{}", "   # or".dimmed());
     println!("{}", "   pnpm add -D tailwindcss".dimmed());
+    println!("{}", "   # or".dimmed());
+    println!("{}", "   bun add -D tailwindcss".dimmed());
     println!(
         "{}",
         "Visit https://tailwindcss.com/docs/installation for setup guide".blue()
@@ -367,6 +369,8 @@ fn print_tailwind_v4_required(check: &TailwindCheck) {
     println!("{}", "   yarn add -D tailwindcss@latest".dimmed());
     println!("{}", "   # or".dimmed());
     println!("{}", "   pnpm add -D tailwindcss@latest".dimmed());
+    println!("{}", "   # or".dimmed());
+    println!("{}", "   bun add -D tailwindcss@latest".dimmed());
 }
 
 fn required_dependencies() -> BTreeMap<String, String> {

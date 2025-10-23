@@ -115,7 +115,9 @@ pub fn install_dependencies(dependencies: &HashMap<String, String>) -> Result<()
         return Ok(());
     }
 
-    let package_manager = if Path::new("yarn.lock").exists() {
+    let package_manager = if Path::new("bun.lockb").exists() || Path::new("bun.lock").exists() {
+        "bun"
+    } else if Path::new("yarn.lock").exists() {
         "yarn"
     } else if Path::new("pnpm-lock.yaml").exists() {
         "pnpm"
@@ -137,6 +139,10 @@ pub fn install_dependencies(dependencies: &HashMap<String, String>) -> Result<()
             .args(&deps_with_versions)
             .status(),
         "pnpm" => Command::new("pnpm")
+            .arg("add")
+            .args(&deps_with_versions)
+            .status(),
+        "bun" => Command::new("bun")
             .arg("add")
             .args(&deps_with_versions)
             .status(),

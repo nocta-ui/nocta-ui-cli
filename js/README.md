@@ -10,7 +10,7 @@ Modern command line tooling for [Nocta UI](https://github.com/nocta-ui/nocta-ui)
 - Creates `nocta.config.json`, injects Tailwind v4 tokens, and sets up shared utilities
 - Fetches live component metadata from the Nocta registry
 - Adds components with internal dependencies, import normalization, and npm packages
-- Respects your package manager (`npm`, `yarn`, or `pnpm`) based on lockfiles
+- Respects your package manager (`npm`, `yarn`, `pnpm`, or `bun`) based on lockfiles
 
 ## Requirements
 - Node.js 18+
