@@ -10,6 +10,7 @@ Modern command line tooling for [Nocta UI](https://github.com/nocta-ui/nocta-ui)
 - Creates `nocta.config.json`, injects Tailwind v4 tokens, and sets up shared utilities
 - Fetches live component metadata from the Nocta registry
 - Adds components with internal dependencies, import normalization, and npm packages
+- Understands linked monorepo workspaces (apps, shared UI packages) and routes files and dependencies automatically
 - Respects your package manager (`npm`, `yarn`, `pnpm`, or `bun`) based on lockfiles
 
 ## Requirements
@@ -52,7 +53,9 @@ npx @nocta-ui/cli init --dry-run
 ```
 - Validates Tailwind CSS v4 and shows upgrade guidance when an older version is detected
 - Detects supported frameworks (Next.js App Router / Pages Router, Vite + React, React Router 7)
+- Detects monorepo layouts, prompts for workspace roles, and links shared UI packages when present
 - Generates `nocta.config.json` tailored to your project directories
+- Creates or updates `nocta.workspace.json` so other workspaces can resolve this package
 - Downloads shared helpers (`lib/utils.ts`) and a base `icons.ts`
 - Injects Nocta design tokens into the configured Tailwind CSS entry file
 - Installs core dependencies: `clsx`, `tailwind-merge`, `class-variance-authority`, `@ariakit/react`, `@radix-ui/react-icons`
@@ -75,9 +78,11 @@ npx @nocta-ui/cli add button --dry-run
 - Requires a valid `nocta.config.json`
 - Accepts one or multiple component names; nested dependencies are resolved automatically
 - Writes files into the folder configured by `aliases.components`
+- In monorepos, writes shared UI files to linked workspaces and updates imports automatically
 - Prompts before overwriting existing files
 - Normalizes import aliases using the prefix from `nocta.config.json` (defaults to `@/` for Next.js/Vite or `~/` for React Router 7)
 - Installs missing npm packages and reports satisfied or updated versions
+- Scopes dependency installation commands to the workspace that owns each component
 - Prints created paths plus ready-to-copy import statements, variants, and sizes
 - Supports `--dry-run` to preview all file writes and dependency changes without modifying the project
 
@@ -102,12 +107,30 @@ The Nocta CLI delivers near-instant command execution thanks to its **Rust-power
     "css": "app/globals.css"
   },
   "aliases": {
-    "components": "components",
-    "utils": "lib/utils"
+    "components": {
+      "filesystem": "app/components/ui",
+      "import": "@workspace/ui/components"
+    },
+    "utils": {
+      "filesystem": "app/lib/utils"
+    }
   },
   "aliasPrefixes": {
     "components": "@",
     "utils": "@"
+  },
+  "workspace": {
+    "kind": "app",
+    "packageName": "@workspace/web",
+    "root": ".",
+    "linkedWorkspaces": [
+      {
+        "kind": "ui",
+        "packageName": "@workspace/ui",
+        "root": "packages/ui",
+        "config": "../packages/ui/nocta.config.json"
+      }
+    ]
   }
 }
 ```
@@ -116,8 +139,33 @@ The Nocta CLI delivers near-instant command execution thanks to its **Rust-power
 - Vite + React uses `src/App.css`, `src/components/ui`, and `src/lib/utils`
 - Tanstack Start uses `src/styles.css`, `src/components/ui`, and `src/lib/utils`
 - React Router 7 uses `app/app.css`, `app/components/ui`, and `app/lib/utils`
-- Update `aliases.components` if you want files placed elsewhere; the CLI always writes into `<alias>/`
-- Update `aliasPrefixes` if you use custom import aliases (for example `@ui` instead of `@/components`).
+- `aliases.*` can be a string (legacy) or an object with `filesystem` and optional `import` keys
+- `aliasPrefixes` still override the default shorthand used when no explicit `import` prefix is provided
+- The `workspace` block records the current package role, npm name, relative root, and any linked workspaces the CLI should write to
+
+The CLI also maintains a repository manifest named `nocta.workspace.json` at the repo root:
+
+```json
+{
+  "packageManager": "pnpm",
+  "workspaces": [
+    {
+      "name": "@workspace/web",
+      "kind": "app",
+      "root": "apps/web",
+      "config": "apps/web/nocta.config.json"
+    },
+    {
+      "name": "@workspace/ui",
+      "kind": "ui",
+      "root": "packages/ui",
+      "config": "packages/ui/nocta.config.json"
+    }
+  ]
+}
+```
+- The manifest enables workspace discovery when commands are run from any package
+- `init` keeps this file synchronised whenever you register new workspaces
 
 ## How Component Installation Works
 1. Fetch component metadata and source files from the registry.

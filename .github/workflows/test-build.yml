@@ -4,10 +4,10 @@ on:
   workflow_dispatch:
   pull_request:
     branches:
-      - feat-monorepo-support
+      - monorepo-support
   push:
     branches:
-      - feat-monorepo-support
+      - monorepo-support
 
 permissions:
   contents: read

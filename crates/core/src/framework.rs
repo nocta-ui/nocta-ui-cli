@@ -246,12 +246,8 @@ fn detect_tanstack_start(
         "@tanstack/router-plugin",
         "@tanstack/react-router-ssr-query",
     ];
-    let has_start_dep = start_dep_names
-        .iter()
-        .any(|name| deps.contains_key(*name));
-    let has_router_dep = router_dep_names
-        .iter()
-        .any(|name| deps.contains_key(*name));
+    let has_start_dep = start_dep_names.iter().any(|name| deps.contains_key(*name));
+    let has_router_dep = router_dep_names.iter().any(|name| deps.contains_key(*name));
 
     let found_configs = find_existing_files(&config_files);
     let indicator_files = [
@@ -292,8 +288,7 @@ fn detect_tanstack_start(
     ];
 
     let has_route_indicators = indicator_files.iter().any(|path| path_exists(path));
-    let has_routes_dir =
-        Path::new("app/routes").is_dir() || Path::new("src/routes").is_dir();
+    let has_routes_dir = Path::new("app/routes").is_dir() || Path::new("src/routes").is_dir();
     let has_structure = !found_configs.is_empty() || has_route_indicators || has_routes_dir;
 
     if !(has_start_dep || (has_structure && has_router_dep)) || !has_react {

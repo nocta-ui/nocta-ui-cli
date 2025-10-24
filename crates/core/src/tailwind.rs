@@ -95,10 +95,7 @@ fn insert_snippet(existing: &str, snippet: &str) -> String {
     result
 }
 
-pub fn add_design_tokens_to_css(
-    registry: &RegistryClient,
-    css_path: &str,
-) -> Result<bool> {
+pub fn add_design_tokens_to_css(registry: &RegistryClient, css_path: &str) -> Result<bool> {
     let full_path = css_full_path(css_path);
     let registry_css = registry
         .fetch_registry_asset(CSS_REGISTRY_PATH)
@@ -174,10 +171,26 @@ fn read_declared_tailwind_version() -> Option<String> {
 }
 
 fn read_installed_tailwind_version() -> Option<String> {
-    let path = css_full_path("node_modules/tailwindcss/package.json");
-    let data = fs::read_to_string(path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&data).ok()?;
-    json.get("version")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
+    let mut dir = current_dir();
+
+    loop {
+        let path = dir.join("node_modules/tailwindcss/package.json");
+        if let Ok(data) = fs::read_to_string(&path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(version) = json
+                    .get("version")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string())
+                {
+                    return Some(version);
+                }
+            }
+        }
+
+        if !dir.pop() {
+            break;
+        }
+    }
+
+    None
 }

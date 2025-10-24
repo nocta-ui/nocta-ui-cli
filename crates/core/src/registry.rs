@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use std::env;
 use std::time::Duration;
 
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use thiserror::Error;
 use ureq::{Agent, Error as UreqError};
 
@@ -95,7 +95,12 @@ impl RegistryClient {
         let _ = cache::write_cache_text(path, contents);
     }
 
-    fn fetch_with_cache(&self, url: &str, cache_path: &str, ttl: Duration) -> Result<String, RegistryError> {
+    fn fetch_with_cache(
+        &self,
+        url: &str,
+        cache_path: &str,
+        ttl: Duration,
+    ) -> Result<String, RegistryError> {
         match self.agent.get(url).call() {
             Ok(response) => {
                 let mut reader = response.into_body();
@@ -124,9 +129,12 @@ impl RegistryClient {
     }
 
     pub fn fetch_registry(&self) -> Result<Registry, RegistryError> {
-        let body = self.fetch_with_cache(&self.registry_url(), REGISTRY_CACHE_PATH, default_registry_ttl())?;
-        serde_json::from_str::<Registry>(&body)
-            .map_err(|err| RegistryError::Parse(err.to_string()))
+        let body = self.fetch_with_cache(
+            &self.registry_url(),
+            REGISTRY_CACHE_PATH,
+            default_registry_ttl(),
+        )?;
+        serde_json::from_str::<Registry>(&body).map_err(|err| RegistryError::Parse(err.to_string()))
     }
 
     pub fn fetch_summary(&self) -> Result<RegistrySummary, RegistryError> {
@@ -205,11 +213,7 @@ impl RegistryClient {
         if !current.internal_dependencies.is_empty() {
             for dep in &current.internal_dependencies {
                 self.collect_component_with_dependencies(
-                    components,
-                    dep,
-                    visiting,
-                    visited,
-                    ordered,
+                    components, dep, visiting, visited, ordered,
                 )?;
             }
         }
@@ -233,10 +237,11 @@ impl RegistryClient {
         }
 
         let manifest_text = self.fetch_registry_asset(COMPONENTS_MANIFEST_PATH)?;
-        let manifest: HashMap<String, String> = serde_json::from_str(&manifest_text)
-            .map_err(|err| RegistryError::AssetParse(COMPONENTS_MANIFEST_PATH.into(), err.to_string()))?;
-        self.components_manifest
-            .replace(Some(manifest.clone()));
+        let manifest: HashMap<String, String> =
+            serde_json::from_str(&manifest_text).map_err(|err| {
+                RegistryError::AssetParse(COMPONENTS_MANIFEST_PATH.into(), err.to_string())
+            })?;
+        self.components_manifest.replace(Some(manifest.clone()));
         Ok(manifest)
     }
 
@@ -245,7 +250,9 @@ impl RegistryClient {
             .split('/')
             .last()
             .filter(|segment| !segment.is_empty())
-            .ok_or_else(|| RegistryError::AssetParse(path.to_string(), "invalid component path".into()))?;
+            .ok_or_else(|| {
+                RegistryError::AssetParse(path.to_string(), "invalid component path".into())
+            })?;
 
         let manifest = self.load_components_manifest()?;
         let encoded = manifest

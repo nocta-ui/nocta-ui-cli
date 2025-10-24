@@ -28,11 +28,7 @@ pub fn run(client: &RegistryClient, _args: ListArgs) -> Result<()> {
                 println!("    {}", component.description.clone().dimmed());
 
                 if !component.variants.is_empty() {
-                    println!(
-                        "  {} {}",
-                        "Variants:".blue(),
-                        component.variants.join(", ")
-                    );
+                    println!("  {} {}", "Variants:".blue(), component.variants.join(", "));
                 }
 
                 if !component.sizes.is_empty() {
