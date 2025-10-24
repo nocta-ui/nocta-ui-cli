@@ -36,6 +36,12 @@ Component names are case-insensitive. You can pass multiple names in one run; th
 - When a linked workspace exposes a custom import alias (`aliases.components.import`), the CLI emits imports using that alias.
 - Existing files trigger a prompt. You can decline to cancel the run, or accept to overwrite. Dry runs list the conflicts but never prompt.
 
+## Export Barrels
+- If a workspace defines `exports.components` in its `nocta.config.json`, `nocta-ui add` keeps the referenced barrel file in sync.
+- New components are appended as named re-exports (`export { Button } from "./components/ui/button";`) inside a marked section so you can still add custom code above or below.
+- Dry runs preview the statements that would be added without touching disk.
+- Shared UI workspaces initialised with the current CLI default to `src/index.ts`, allowing consumers to import from the package root immediately.
+
 ## Dependency Management
 - Dependencies declared in the registry (for example `clsx`, `tailwind-merge`, `class-variance-authority`, `@ariakit/react`, `@radix-ui/react-icons`) are grouped by workspace.
 - The CLI inspects each workspace’s `package.json` and installed versions. It only installs packages that are missing or incompatible.

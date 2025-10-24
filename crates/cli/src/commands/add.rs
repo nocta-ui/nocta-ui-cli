@@ -1,5 +1,6 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ffi::OsStr;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow};
@@ -16,11 +17,11 @@ use crate::reporter::ConsoleReporter;
 use crate::util::{canonicalize_path, create_spinner, normalize_relative_path};
 use nocta_core::config::{read_config, read_config_from};
 use nocta_core::deps::{
-    plan_dependency_install, RequirementIssueReason, check_project_requirements,
-    get_installed_dependencies_at,
+    RequirementIssueReason, check_project_requirements, get_installed_dependencies_at,
+    plan_dependency_install,
 };
 use nocta_core::framework::{FrameworkDetection, FrameworkKind, detect_framework};
-use nocta_core::fs::{file_exists, write_file};
+use nocta_core::fs::{file_exists, read_file, write_file};
 use nocta_core::paths::resolve_component_path;
 use nocta_core::registry::RegistryClient;
 use nocta_core::rollback::rollback_changes;
@@ -29,7 +30,7 @@ use nocta_core::workspace::{
     load_workspace_manifest,
 };
 
-use nocta_core::types::{Component, Config, WorkspaceKind};
+use nocta_core::types::{Component, Config, ExportStrategy, WorkspaceKind};
 
 #[derive(Args, Debug, Clone)]
 pub struct AddArgs {
@@ -144,6 +145,15 @@ impl<'a> AddCommand<'a> {
             self.write_component_files(&mut prep_spinner, &all_component_files)?;
             prep_spinner.finish_and_clear();
         }
+
+        let export_updates = sync_component_exports(
+            self.dry_run,
+            &workspace_context,
+            &requested_entries,
+            &all_component_files,
+            &mut self.written_paths,
+        )?;
+        self.report_export_updates(&export_updates);
 
         if deps_by_workspace.values().any(|deps| !deps.is_empty()) {
             handle_workspace_dependencies(
@@ -293,8 +303,10 @@ impl<'a> AddCommand<'a> {
         }
 
         if self.dry_run {
-            self.reporter
-                .info(format!("\n{}", "[dry-run] Would overwrite the files above".blue()));
+            self.reporter.info(format!(
+                "\n{}",
+                "[dry-run] Would overwrite the files above".blue()
+            ));
             self.reporter.blank();
             let spinner = create_spinner("[dry-run] Preparing file writes...");
             write_component_files(component_files, true, &mut self.written_paths)?;
@@ -333,6 +345,39 @@ impl<'a> AddCommand<'a> {
         Ok(())
     }
 
+    fn report_export_updates(&self, updates: &[ExportUpdate]) {
+        if updates.is_empty() {
+            return;
+        }
+
+        let heading = if self.dry_run {
+            format!("{}", "[dry-run] Export barrels:".blue())
+        } else {
+            format!("{}", "Export barrels updated:".green())
+        };
+        self.reporter.info(format!("\n{}", heading));
+
+        for update in updates {
+            let action = match (self.dry_run, &update.change) {
+                (true, ExportChangeKind::Created) => "Would create",
+                (true, ExportChangeKind::Updated) => "Would update",
+                (false, ExportChangeKind::Created) => "Created",
+                (false, ExportChangeKind::Updated) => "Updated",
+            };
+
+            let summary = format!(
+                "{} {} ({})",
+                action,
+                update.display_path.display(),
+                update.workspace_label
+            );
+            self.reporter.info(format!("   {}", summary.dimmed()));
+            for stmt in &update.statements {
+                self.reporter.info(format!("      {}", stmt.dimmed()));
+            }
+        }
+    }
+
     fn finish(&mut self) {
         self.spinner.finish_and_clear();
     }
@@ -340,17 +385,15 @@ impl<'a> AddCommand<'a> {
     fn rollback(&self) {
         if !self.dry_run && !self.written_paths.is_empty() {
             let _ = rollback_changes(&self.written_paths);
-            self.reporter
-                .warn(format!("{}", "Rolled back written component files".yellow()));
+            self.reporter.warn(format!(
+                "{}",
+                "Rolled back written component files".yellow()
+            ));
         }
     }
 }
 
-pub fn run(
-    client: &RegistryClient,
-    reporter: &ConsoleReporter,
-    args: AddArgs,
-) -> CommandResult {
+pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, args: AddArgs) -> CommandResult {
     let mut command = AddCommand::new(client, reporter, args);
     match command.execute() {
         Ok(outcome) => Ok(outcome),
@@ -414,6 +457,22 @@ struct ComponentFileWithContent {
     display_path: PathBuf,
     content: String,
     component_name: String,
+    component_slug: String,
+    file_type: String,
+}
+
+#[derive(Debug)]
+struct ExportUpdate {
+    workspace_label: String,
+    display_path: PathBuf,
+    statements: Vec<String>,
+    change: ExportChangeKind,
+}
+
+#[derive(Debug)]
+enum ExportChangeKind {
+    Created,
+    Updated,
 }
 
 fn resolve_alias_prefix(config: &Config, detection: Option<&FrameworkDetection>) -> String {
@@ -701,6 +760,8 @@ fn gather_component_files(
                 display_path,
                 content: normalized,
                 component_name: entry.component.name.clone(),
+                component_slug: entry.slug.clone(),
+                file_type: file.file_type.clone(),
             });
 
             workspace_ids_for_component.insert(handle.id.clone());
@@ -777,6 +838,293 @@ fn select_dependency_target(
     }
 
     Ok(None)
+}
+
+const EXPORT_BLOCK_START: &str = "// @nocta-ui/cli: auto-exports:start";
+const EXPORT_BLOCK_END: &str = "// @nocta-ui/cli: auto-exports:end";
+const EXPORT_BLOCK_COMMENT: &str =
+    "// This section is auto-generated by Nocta UI CLI. Do not edit manually.";
+
+fn sync_component_exports(
+    dry_run: bool,
+    context: &WorkspaceContext,
+    component_entries: &[ComponentEntry],
+    files: &[ComponentFileWithContent],
+    written_paths: &mut Vec<PathBuf>,
+) -> Result<Vec<ExportUpdate>> {
+    let mut updates = Vec::new();
+    if component_entries.is_empty() {
+        return Ok(updates);
+    }
+
+    let component_lookup: HashMap<&str, &ComponentEntry> = component_entries
+        .iter()
+        .map(|entry| (entry.slug.as_str(), entry))
+        .collect();
+
+    for handle in context.handles() {
+        let Some(exports_cfg) = handle
+            .config
+            .exports
+            .as_ref()
+            .and_then(|cfg| cfg.components())
+        else {
+            continue;
+        };
+
+        if exports_cfg.strategy != ExportStrategy::Named {
+            continue;
+        }
+
+        let workspace_files: Vec<&ComponentFileWithContent> = files
+            .iter()
+            .filter(|file| file.workspace_id == handle.id && file.file_type == "component")
+            .collect();
+
+        if workspace_files.is_empty() {
+            continue;
+        }
+
+        let barrel_rel = Path::new(exports_cfg.barrel_path());
+        let barrel_abs = handle.root_abs.join(barrel_rel);
+        let barrel_dir = barrel_abs
+            .parent()
+            .unwrap_or_else(|| handle.root_abs.as_path());
+
+        let mut new_entries: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+        for file in workspace_files {
+            let Some(entry) = component_lookup.get(file.component_slug.as_str()) else {
+                continue;
+            };
+
+            if entry.component.exports.is_empty() {
+                continue;
+            }
+
+            let module_path = module_path_from_barrel(barrel_dir, &file.absolute_path);
+            let export_entry = new_entries.entry(module_path).or_insert_with(BTreeSet::new);
+            for name in &entry.component.exports {
+                export_entry.insert(name.clone());
+            }
+        }
+
+        if new_entries.is_empty() {
+            continue;
+        }
+
+        let touched_modules: Vec<String> = new_entries.keys().cloned().collect();
+
+        let existing_content = match read_file(&barrel_abs) {
+            Ok(content) => Some(content),
+            Err(err) => {
+                if err.kind() == io::ErrorKind::NotFound {
+                    None
+                } else {
+                    return Err(anyhow!(
+                        "failed to read export barrel {}: {}",
+                        barrel_abs.display(),
+                        err
+                    ));
+                }
+            }
+        };
+
+        let partition = existing_content
+            .as_deref()
+            .map(parse_existing_export_block)
+            .unwrap_or_else(|| parse_existing_export_block(""));
+
+        let mut merged_map = partition.existing_map.clone();
+        for (module, names) in new_entries.into_iter() {
+            merged_map
+                .entry(module)
+                .or_insert_with(BTreeSet::new)
+                .extend(names.into_iter());
+        }
+
+        if merged_map == partition.existing_map {
+            continue;
+        }
+
+        let export_lines = export_lines_from_map(&merged_map);
+        let block = build_export_block(&export_lines);
+
+        let mut new_content = String::new();
+        new_content.push_str(&partition.before);
+        if !partition.before.is_empty() && !partition.before.ends_with('\n') {
+            new_content.push('\n');
+        }
+        new_content.push_str(&block);
+        if !partition.after.is_empty() {
+            if !block.ends_with('\n') {
+                new_content.push('\n');
+            }
+            if !partition.after.starts_with('\n') && !new_content.ends_with('\n') {
+                new_content.push('\n');
+            }
+            new_content.push_str(&partition.after);
+        }
+
+        let display_path =
+            diff_paths(&barrel_abs, &context.current_dir).unwrap_or_else(|| barrel_abs.clone());
+
+        if !dry_run {
+            write_file(&barrel_abs, &new_content).with_context(|| {
+                format!("failed to write export barrel {}", barrel_abs.display())
+            })?;
+            written_paths.push(barrel_abs.clone());
+        }
+
+        let touched_set: HashSet<String> = touched_modules.into_iter().collect();
+        let statements = merged_map
+            .iter()
+            .filter(|(module, _)| touched_set.contains(module.as_str()))
+            .map(|(module, names)| format_export_line(module, names))
+            .collect::<Vec<_>>();
+
+        let change = if existing_content.is_some() {
+            ExportChangeKind::Updated
+        } else {
+            ExportChangeKind::Created
+        };
+
+        updates.push(ExportUpdate {
+            workspace_label: handle.label.clone(),
+            display_path,
+            statements,
+            change,
+        });
+    }
+
+    Ok(updates)
+}
+
+#[derive(Default)]
+struct ExportPartition {
+    before: String,
+    after: String,
+    existing_map: BTreeMap<String, BTreeSet<String>>,
+}
+
+fn parse_existing_export_block(content: &str) -> ExportPartition {
+    if content.is_empty() {
+        return ExportPartition::default();
+    }
+
+    if let Some(start_idx) = content.find(EXPORT_BLOCK_START) {
+        if let Some(end_rel_idx) = content[start_idx..].find(EXPORT_BLOCK_END) {
+            let end_idx = start_idx + end_rel_idx;
+            let block_body_start = start_idx + EXPORT_BLOCK_START.len();
+            let block_body = &content[block_body_start..end_idx];
+            let after_start = end_idx + EXPORT_BLOCK_END.len();
+            let before = content[..start_idx].to_string();
+            let after = if after_start < content.len() {
+                content[after_start..].to_string()
+            } else {
+                String::new()
+            };
+            let existing_map = parse_export_lines(block_body);
+            return ExportPartition {
+                before,
+                after,
+                existing_map,
+            };
+        }
+    }
+
+    ExportPartition {
+        before: content.to_string(),
+        after: String::new(),
+        existing_map: BTreeMap::new(),
+    }
+}
+
+fn parse_export_lines(body: &str) -> BTreeMap<String, BTreeSet<String>> {
+    let mut map = BTreeMap::new();
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            continue;
+        }
+
+        if let Some((module, names)) = parse_export_line(trimmed) {
+            let entry = map.entry(module).or_insert_with(BTreeSet::new);
+            for name in names {
+                entry.insert(name);
+            }
+        }
+    }
+    map
+}
+
+fn parse_export_line(line: &str) -> Option<(String, Vec<String>)> {
+    let export_body = line.strip_prefix("export")?.trim_start();
+    let remainder = export_body.strip_prefix('{')?;
+    let brace_end = remainder.find('}')?;
+    let names_part = &remainder[..brace_end];
+    let after_brace = remainder[brace_end + 1..].trim_start();
+    let from_part = after_brace.strip_prefix("from")?.trim_start();
+    let quote = from_part.chars().next()?;
+    if quote != '"' && quote != '\'' {
+        return None;
+    }
+    let after_quote = &from_part[1..];
+    let module_end = after_quote.find(quote)?;
+    let module = after_quote[..module_end].to_string();
+
+    let names = names_part
+        .split(',')
+        .map(|name| name.trim())
+        .filter(|name| !name.is_empty())
+        .map(|name| name.to_string())
+        .collect::<Vec<_>>();
+
+    if names.is_empty() {
+        return None;
+    }
+
+    Some((module, names))
+}
+
+fn export_lines_from_map(map: &BTreeMap<String, BTreeSet<String>>) -> Vec<String> {
+    map.iter()
+        .map(|(module, names)| format_export_line(module, names))
+        .collect()
+}
+
+fn format_export_line(module: &str, names: &BTreeSet<String>) -> String {
+    let joined = names.iter().cloned().collect::<Vec<_>>().join(", ");
+    format!("export {{ {} }} from \"{}\";", joined, module)
+}
+
+fn build_export_block(lines: &[String]) -> String {
+    let mut block = String::new();
+    block.push_str(EXPORT_BLOCK_START);
+    block.push('\n');
+    block.push_str(EXPORT_BLOCK_COMMENT);
+    block.push('\n');
+    for line in lines {
+        block.push_str(line);
+        block.push('\n');
+    }
+    block.push_str(EXPORT_BLOCK_END);
+    block.push('\n');
+    block
+}
+
+fn module_path_from_barrel(barrel_dir: &Path, target_path: &Path) -> String {
+    let relative = diff_paths(target_path, barrel_dir).unwrap_or_else(|| target_path.to_path_buf());
+    let mut without_extension = relative.clone();
+    if without_extension.extension().is_some() {
+        without_extension.set_extension("");
+    }
+    let mut module = without_extension.to_string_lossy().replace('\\', "/");
+    if module.starts_with('/') {
+        module = format!(".{}", module);
+    } else if !module.starts_with('.') {
+        module = format!("./{}", module);
+    }
+    module
 }
 
 fn normalize_component_content(content: &str, handle: &WorkspaceHandle) -> String {
@@ -984,8 +1332,7 @@ fn print_add_summary(
     files: &[ComponentFileWithContent],
 ) {
     reporter.blank();
-    reporter
-        .info(format!("{}", "Components installed:".green()));
+    reporter.info(format!("{}", "Components installed:".green()));
 
     let mut files_by_workspace: BTreeMap<String, Vec<&ComponentFileWithContent>> = BTreeMap::new();
     for file in files {
@@ -997,12 +1344,14 @@ fn print_add_summary(
 
     for (workspace_id, entries) in &files_by_workspace {
         if let Some(handle) = context.handle_by_id(workspace_id) {
-            reporter.info(format!("{}", format!("  Workspace {}:", handle.label).blue()));
+            reporter.info(format!(
+                "{}",
+                format!("  Workspace {}:", handle.label).blue()
+            ));
             for file in entries {
                 reporter.info(format!(
                     "     {}",
-                    format!("{} ({})", file.display_path.display(), file.component_name)
-                        .dimmed()
+                    format!("{} ({})", file.display_path.display(), file.component_name).dimmed()
                 ));
             }
         }

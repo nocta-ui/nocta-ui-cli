@@ -43,4 +43,3 @@ pub fn create_spinner(message: impl Into<String>) -> ProgressBar {
     pb.set_message(message.into());
     pb
 }
-

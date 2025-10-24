@@ -11,7 +11,10 @@ pub struct ListArgs {}
 pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, _args: ListArgs) -> CommandResult {
     let registry = client.fetch_registry()?;
 
-    reporter.info(format!("{}\n", "Available nocta-ui components:".blue().bold()));
+    reporter.info(format!(
+        "{}\n",
+        "Available nocta-ui components:".blue().bold()
+    ));
 
     let mut categories: Vec<_> = registry.categories.iter().collect();
     categories.sort_by(|(_, a), (_, b)| a.name.cmp(&b.name));
@@ -26,10 +29,7 @@ pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, _args: ListArgs)
         for component_name in components {
             if let Some(component) = registry.components.get(component_name) {
                 reporter.info(format!("  {}", component.name.to_lowercase().green()));
-                reporter.info(format!(
-                    "    {}",
-                    component.description.clone().dimmed()
-                ));
+                reporter.info(format!("    {}", component.description.clone().dimmed()));
 
                 if !component.variants.is_empty() {
                     reporter.info(format!(
@@ -53,7 +53,10 @@ pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, _args: ListArgs)
     }
 
     reporter.info(format!("{}", "Add a component:".blue()));
-    reporter.info(format!("  {}", "npx nocta-ui add <component-name>".dimmed()));
+    reporter.info(format!(
+        "  {}",
+        "npx nocta-ui add <component-name>".dimmed()
+    ));
 
     reporter.info(format!("\n{}", "Examples:".blue()));
     reporter.info(format!("  {}", "npx nocta-ui add button".dimmed()));

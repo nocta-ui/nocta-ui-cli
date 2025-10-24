@@ -142,8 +142,8 @@ impl RegistryClient {
             }
         }
 
-        let registry =
-            serde_json::from_str::<Registry>(&body).map_err(|err| RegistryError::Parse(err.to_string()))?;
+        let registry = serde_json::from_str::<Registry>(&body)
+            .map_err(|err| RegistryError::Parse(err.to_string()))?;
         self.registry_cache.replace(Some((body, registry.clone())));
         Ok(registry)
     }

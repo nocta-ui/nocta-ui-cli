@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use semver::{Version, VersionReq};
 use serde::Deserialize;
 
-use crate::workspace::{detect_package_manager, PackageManagerContext, PackageManagerKind};
+use crate::workspace::{PackageManagerContext, PackageManagerKind, detect_package_manager};
 
 const YARN_PNP_MARKERS: [&str; 3] = [".pnp.cjs", ".pnp.js", ".pnp.loader.mjs"];
 
@@ -226,7 +226,7 @@ pub fn plan_dependency_install(
                 args.push(package.to_string());
                 args.push("add".into());
                 args.extend(deps_with_versions.clone());
-                ( "yarn".into(), args, repo_root.clone() )
+                ("yarn".into(), args, repo_root.clone())
             } else {
                 args.push("add".into());
                 args.extend(deps_with_versions.clone());

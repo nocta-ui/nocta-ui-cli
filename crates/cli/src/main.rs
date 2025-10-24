@@ -6,7 +6,7 @@ use std::process;
 
 use clap::{Parser, Subcommand};
 
-use commands::{add, init, list, CommandOutcome, CommandResult};
+use commands::{CommandOutcome, CommandResult, add, init, list};
 use nocta_core::RegistryClient;
 use reporter::ConsoleReporter;
 

@@ -4,7 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use crate::workspace::{find_repo_root, WORKSPACE_MANIFEST_FILE};
+use crate::workspace::{WORKSPACE_MANIFEST_FILE, find_repo_root};
 
 const DEFAULT_CACHE_DIR: &str = ".nocta-cache";
 

@@ -24,6 +24,7 @@ npx @nocta-ui/cli init
 - Provide the npm workspace/package name (for example `@workspace/ui`) if you use one.
 - The CLI writes `nocta.config.json`, helper files (`src/lib/utils.ts`, `src/components/ui/icons.ts`), and updates `nocta.workspace.json`.
 - Dependencies such as `@ariakit/react`, `clsx`, and `tailwind-merge` are installed here.
+- `package.json` is updated (or reported in dry-run) so `exports["."]` points at `src/index.ts`, the auto-generated barrel file.
 
 ### 2. Initialise Each Application Workspace
 ```bash
@@ -45,6 +46,7 @@ npx @nocta-ui/cli add button
 - Dependency installation commands run against the workspace that owns each file:
   - Shared UI workspace receives the component dependencies.
   - Application workspace only receives integration packages if the registry explicitly marks them as such.
+- When the shared UI workspace defines `exports.components`, the CLI updates that barrel (default `src/index.ts`) so consumers can import from the package root without extra steps.
 
 ### 4. Repeat for Additional Apps or Libraries
 Each new workspace should run `init` once to register itself. Linking to the shared UI package ensures components stay centralised.
@@ -89,6 +91,7 @@ When you link a workspace in the `init` prompt, the CLI records an entry in `lin
 - **Run `init` before `add`** in every workspace that needs Nocta components.
 - **Use npm workspace names** (`packageName`) to improve dependency installation fidelity.
 - **Keep relative paths correct** – if you move a workspace, update both `root` and `config` in your `nocta.config.json`.
+- **Opt into auto-exports** – ensure your shared UI config includes `\"exports\": { \"components\": { \"barrel\": \"src/index.ts\" } }` (added automatically by the latest CLI) so new components are re-exported for consumers.
 - **Leverage `--dry-run`** for both `init` and `add` to validate changes before committing.
 - **Regenerate configs after restructuring** (e.g. when upgrading Next.js routing) to ensure aliases and Tailwind paths stay correct.
 

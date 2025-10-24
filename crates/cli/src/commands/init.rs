@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, anyhow};
@@ -17,7 +18,7 @@ use crate::util::{
 };
 use nocta_core::config::{read_config, write_config};
 use nocta_core::deps::{
-    plan_dependency_install, RequirementIssue, RequirementIssueReason, check_project_requirements,
+    RequirementIssue, RequirementIssueReason, check_project_requirements, plan_dependency_install,
 };
 use nocta_core::framework::{AppStructure, FrameworkKind, detect_framework};
 use nocta_core::fs::{file_exists, write_file};
@@ -26,7 +27,8 @@ use nocta_core::registry::RegistryClient;
 use nocta_core::rollback::rollback_changes;
 use nocta_core::tailwind::{TailwindCheck, add_design_tokens_to_css, check_tailwind_installation};
 use nocta_core::types::{
-    AliasPrefixes, Aliases, Config, TailwindConfig, WorkspaceConfig, WorkspaceKind, WorkspaceLink,
+    AliasPrefixes, Aliases, Config, ExportsConfig, ExportsTargetConfig, TailwindConfig,
+    WorkspaceConfig, WorkspaceKind, WorkspaceLink,
 };
 use nocta_core::workspace::{
     PackageManagerContext, PackageManagerKind, WORKSPACE_MANIFEST_FILE, WorkspaceManifest,
@@ -73,8 +75,10 @@ impl<'a> InitCommand<'a> {
             self.spinner.finish_and_clear();
             self.reporter
                 .warn(format!("{}", "nocta.config.json already exists!".yellow()));
-            self.reporter
-                .info(format!("{}", "Your project is already initialized.".dimmed()));
+            self.reporter.info(format!(
+                "{}",
+                "Your project is already initialized.".dimmed()
+            ));
             return Ok(CommandOutcome::NoOp);
         }
 
@@ -104,9 +108,11 @@ impl<'a> InitCommand<'a> {
             components: Some(config_alias_prefix(&framework_detection)),
             utils: Some(config_alias_prefix(&framework_detection)),
         });
+        ensure_default_exports_config(&mut config, workspace.config_workspace.kind);
         config.workspace = Some(workspace.config_workspace.clone());
 
         self.write_config(&config)?;
+        self.ensure_package_exports(&workspace, &config)?;
         self.handle_dependencies(manage_dependencies, &required_dependencies, &workspace)?;
 
         let (utils_created, icons_created) =
@@ -228,8 +234,10 @@ impl<'a> InitCommand<'a> {
             .set_message(format!("{}Creating configuration...", self.prefix));
         if self.dry_run {
             self.reporter.blank();
-            self.reporter
-                .info(format!("{}", "[dry-run] Would create configuration:".blue()));
+            self.reporter.info(format!(
+                "{}",
+                "[dry-run] Would create configuration:".blue()
+            ));
             self.reporter
                 .info(format!("   {}", "nocta.config.json".dimmed()));
             Ok(())
@@ -257,8 +265,10 @@ impl<'a> InitCommand<'a> {
                     self.prefix
                 ));
                 self.reporter.blank();
-                self.reporter
-                    .info(format!("{}", "[dry-run] Would install dependencies:".blue()));
+                self.reporter.info(format!(
+                    "{}",
+                    "[dry-run] Would install dependencies:".blue()
+                ));
                 for (dep, version) in required {
                     self.reporter
                         .info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
@@ -309,6 +319,118 @@ impl<'a> InitCommand<'a> {
                     .blue()
             ));
         }
+        Ok(())
+    }
+
+    fn ensure_package_exports(
+        &mut self,
+        workspace: &WorkspaceResolution,
+        config: &Config,
+    ) -> Result<()> {
+        if workspace.config_workspace.kind != WorkspaceKind::Ui {
+            return Ok(());
+        }
+
+        let Some(exports_cfg) = config.exports.as_ref().and_then(|cfg| cfg.components()) else {
+            return Ok(());
+        };
+
+        let barrel = exports_cfg.barrel_path().trim();
+        if barrel.is_empty() {
+            return Ok(());
+        }
+
+        let pkg_path = workspace.workspace_root_abs.join("package.json");
+        let contents = match fs::read_to_string(&pkg_path) {
+            Ok(data) => data,
+            Err(err) => {
+                if err.kind() == io::ErrorKind::NotFound {
+                    return Ok(());
+                }
+                return Err(anyhow!("failed to read {}: {}", pkg_path.display(), err));
+            }
+        };
+
+        let mut json: Value =
+            serde_json::from_str(&contents).context("failed to parse package.json")?;
+        let export_value = sanitize_barrel_for_exports(barrel);
+        let export_json = Value::String(export_value.clone());
+        let mut changed = false;
+
+        match json.get_mut("exports") {
+            Some(Value::Object(map)) => match map.get(".") {
+                Some(Value::String(current)) => {
+                    if current != &export_value {
+                        map.insert(".".into(), export_json.clone());
+                        changed = true;
+                    }
+                }
+                Some(Value::Object(_)) | Some(Value::Array(_)) => {
+                    // Respect existing complex shape; do not modify.
+                    return Ok(());
+                }
+                Some(_) => {
+                    // Unsupported scalar type. Leave untouched.
+                    return Ok(());
+                }
+                None => {
+                    map.insert(".".into(), export_json.clone());
+                    changed = true;
+                }
+            },
+            Some(Value::String(current)) => {
+                if current != &export_value {
+                    json["exports"] = Value::String(export_value.clone());
+                    changed = true;
+                }
+            }
+            Some(_) => {
+                // Unsupported shape; leave untouched.
+                return Ok(());
+            }
+            None => {
+                let mut map = serde_json::Map::new();
+                map.insert(".".into(), export_json.clone());
+                json["exports"] = Value::Object(map);
+                changed = true;
+            }
+        }
+
+        if !changed {
+            return Ok(());
+        }
+
+        let display_path =
+            diff_paths(&pkg_path, &workspace.repo_root).unwrap_or_else(|| pkg_path.clone());
+
+        if self.dry_run {
+            self.reporter.blank();
+            self.reporter.info(format!(
+                "{}",
+                format!(
+                    "[dry-run] Would set exports[\".\"] = \"{}\" in {}",
+                    export_value,
+                    display_path.display()
+                )
+                .blue()
+            ));
+            return Ok(());
+        }
+
+        let updated = serde_json::to_string_pretty(&json)?;
+        fs::write(&pkg_path, updated)
+            .with_context(|| format!("failed to write {}", pkg_path.display()))?;
+        self.reporter.blank();
+        self.reporter.info(format!(
+            "{}",
+            format!(
+                "Configured exports[\".\"] = \"{}\" in {}",
+                export_value,
+                display_path.display()
+            )
+            .green()
+        ));
+
         Ok(())
     }
 
@@ -715,11 +837,7 @@ fn workspace_kind_label(kind: WorkspaceKind) -> &'static str {
     }
 }
 
-pub fn run(
-    client: &RegistryClient,
-    reporter: &ConsoleReporter,
-    args: InitArgs,
-) -> CommandResult {
+pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, args: InitArgs) -> CommandResult {
     let mut command = InitCommand::new(client, reporter, args);
     match command.execute() {
         Ok(outcome) => Ok(outcome),
@@ -733,7 +851,10 @@ pub fn run(
 
 fn print_tailwind_missing_message(reporter: &ConsoleReporter, check: &TailwindCheck) {
     let _ = check;
-    reporter.error(format!("{}", "Tailwind CSS is required but not found!".red()));
+    reporter.error(format!(
+        "{}",
+        "Tailwind CSS is required but not found!".red()
+    ));
     reporter.error(format!(
         "{}",
         "Tailwind CSS is not installed or not found in node_modules".red()
@@ -765,9 +886,15 @@ fn print_framework_unknown_message(
         "Could not detect a supported React framework".red()
     ));
     reporter.warn(format!("{}", "nocta-ui supports:".yellow()));
-    reporter.info(format!("{}", "   • Next.js (App Router or Pages Router)".dimmed()));
+    reporter.info(format!(
+        "{}",
+        "   • Next.js (App Router or Pages Router)".dimmed()
+    ));
     reporter.info(format!("{}", "   • Vite + React".dimmed()));
-    reporter.info(format!("{}", "   • React Router 7 (Framework Mode)".dimmed()));
+    reporter.info(format!(
+        "{}",
+        "   • React Router 7 (Framework Mode)".dimmed()
+    ));
     reporter.info(format!("{}", "   • TanStack Start".dimmed()));
     reporter.info(format!("{}", "Detection details:".blue()));
     reporter.info(format!(
@@ -823,7 +950,10 @@ fn print_framework_unknown_message(
             "     npm create vite@latest . -- --template react-ts".dimmed()
         ));
         reporter.info(format!("{}", "   React Router 7:".blue()));
-        reporter.info(format!("{}", "     npx create-react-router@latest".dimmed()));
+        reporter.info(format!(
+            "{}",
+            "     npx create-react-router@latest".dimmed()
+        ));
         reporter.info(format!("{}", "   TanStack Start:".blue()));
         reporter.info(format!("{}", "     npm create tanstack@latest".dimmed()));
     }
@@ -852,12 +982,18 @@ fn print_requirement_issues(
             format!("   {}: requires {}", issue.name, issue.required).yellow()
         ));
         if let Some(installed) = &issue.installed {
-            reporter.info(format!("{}", format!("      installed: {}", installed).dimmed()));
+            reporter.info(format!(
+                "{}",
+                format!("      installed: {}", installed).dimmed()
+            ));
         } else {
             reporter.info(format!("{}", "      installed: not found".dimmed()));
         }
         if let Some(declared) = &issue.declared {
-            reporter.info(format!("{}", format!("      declared: {}", declared).dimmed()));
+            reporter.info(format!(
+                "{}",
+                format!("      declared: {}", declared).dimmed()
+            ));
         }
         match issue.reason {
             RequirementIssueReason::Outdated => {
@@ -907,29 +1043,17 @@ fn print_tailwind_v4_required(reporter: &ConsoleReporter, check: &TailwindCheck)
         )
         .red()
     ));
-    reporter.warn(format!(
-        "{}",
-        "Please upgrade to Tailwind CSS v4:".yellow()
-    ));
+    reporter.warn(format!("{}", "Please upgrade to Tailwind CSS v4:".yellow()));
     reporter.info(format!(
         "{}",
         "   npm install -D tailwindcss@latest".dimmed()
     ));
     reporter.info(format!("{}", "   # or".dimmed()));
-    reporter.info(format!(
-        "{}",
-        "   yarn add -D tailwindcss@latest".dimmed()
-    ));
+    reporter.info(format!("{}", "   yarn add -D tailwindcss@latest".dimmed()));
     reporter.info(format!("{}", "   # or".dimmed()));
-    reporter.info(format!(
-        "{}",
-        "   pnpm add -D tailwindcss@latest".dimmed()
-    ));
+    reporter.info(format!("{}", "   pnpm add -D tailwindcss@latest".dimmed()));
     reporter.info(format!("{}", "   # or".dimmed()));
-    reporter.info(format!(
-        "{}",
-        "   bun add -D tailwindcss@latest".dimmed()
-    ));
+    reporter.info(format!("{}", "   bun add -D tailwindcss@latest".dimmed()));
 }
 
 fn ensure_registry_asset(
@@ -954,11 +1078,11 @@ fn ensure_registry_asset(
     }
 
     if dry_run {
-        reporter.info(format!("{}", format!("[dry-run] Would create {}:", label).blue()));
         reporter.info(format!(
-            "   {}",
-            target_path.display().to_string().dimmed()
+            "{}",
+            format!("[dry-run] Would create {}:", label).blue()
         ));
+        reporter.info(format!("   {}", target_path.display().to_string().dimmed()));
         return Ok(true);
     }
 
@@ -1031,6 +1155,7 @@ fn build_config(
                     utils: "lib/utils".into(),
                 },
                 alias_prefixes: None,
+                exports: None,
                 workspace: None,
             })
         }
@@ -1045,6 +1170,7 @@ fn build_config(
                 utils: "src/lib/utils".into(),
             },
             alias_prefixes: None,
+            exports: None,
             workspace: None,
         }),
         FrameworkKind::ReactRouter => Ok(Config {
@@ -1058,6 +1184,7 @@ fn build_config(
                 utils: "app/lib/utils".into(),
             },
             alias_prefixes: None,
+            exports: None,
             workspace: None,
         }),
         FrameworkKind::TanstackStart => {
@@ -1091,6 +1218,7 @@ fn build_config(
                     utils: "src/lib/utils".into(),
                 },
                 alias_prefixes: None,
+                exports: None,
                 workspace: None,
             })
         }
@@ -1137,8 +1265,61 @@ fn build_shared_workspace_config(kind: WorkspaceKind) -> Result<Config> {
             utils: utils_path.into(),
         },
         alias_prefixes: None,
+        exports: None,
         workspace: None,
     })
+}
+
+fn ensure_default_exports_config(config: &mut Config, workspace_kind: WorkspaceKind) {
+    if workspace_kind != WorkspaceKind::Ui {
+        return;
+    }
+
+    let components_path = config.aliases.components.filesystem_path();
+    let default_barrel = default_components_barrel_path(components_path);
+    let exports = config.exports.get_or_insert_with(ExportsConfig::default);
+
+    match exports.components_mut() {
+        Some(target) => {
+            if target.barrel.trim().is_empty() {
+                target.barrel = default_barrel;
+            }
+        }
+        None => {
+            exports.components = Some(ExportsTargetConfig::new(default_barrel));
+        }
+    }
+}
+
+fn default_components_barrel_path(path: &str) -> String {
+    let normalized = path.trim().trim_start_matches("./").trim_start_matches('/');
+
+    if normalized.is_empty() {
+        return "index.ts".into();
+    }
+
+    let mut segments = normalized.split('/');
+    let first = segments.find(|segment| !segment.is_empty());
+
+    match first {
+        Some(segment) => format!("{}/index.ts", segment),
+        None => "index.ts".into(),
+    }
+}
+
+fn sanitize_barrel_for_exports(path: &str) -> String {
+    let mut normalized = path.trim().replace('\\', "/");
+    normalized = normalized.trim_start_matches("./").to_string();
+
+    if normalized.is_empty() {
+        return "./index.ts".into();
+    }
+
+    if normalized.starts_with('.') {
+        return normalized;
+    }
+
+    format!("./{}", normalized)
 }
 
 fn dependencies_managed_in_workspace(workspace: &WorkspaceResolution) -> bool {

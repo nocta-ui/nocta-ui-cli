@@ -10,6 +10,7 @@ Modern command line tooling for [Nocta UI](https://github.com/nocta-ui/nocta-ui)
 - Creates `nocta.config.json`, injects Tailwind v4 tokens, and sets up shared utilities
 - Fetches live component metadata from the Nocta registry
 - Adds components with internal dependencies, import normalization, and npm packages
+- Maintains shared UI export barrels so new components are ready to import from the package root
 - Understands linked monorepo workspaces (apps, shared UI packages) and routes files and dependencies automatically
 - Respects your package manager (`npm`, `yarn`, `pnpm`, or `bun`) based on lockfiles
 
@@ -58,6 +59,7 @@ npx @nocta-ui/cli init --dry-run
 - Creates or updates `nocta.workspace.json` so other workspaces can discover this package
 - Downloads shared helpers (`lib/utils.ts`) and a base `icons.ts`
 - Injects Nocta design tokens into the configured Tailwind CSS entry file
+- Configures shared UI workspaces to export their component barrel via `package.json`
 - Installs core dependencies: `clsx`, `tailwind-merge`, `class-variance-authority`, `@ariakit/react`, `@radix-ui/react-icons`
 - Rolls back created files if initialization fails midway
 
@@ -141,6 +143,7 @@ The Nocta CLI delivers near-instant command execution thanks to its **Rust-power
 - React Router 7 uses `app/app.css`, `app/components/ui`, and `app/lib/utils`
 - `aliases.*` can be a string (legacy) or an object with `filesystem` and optional `import` keys
 - `aliasPrefixes` still override the default shorthand used when no explicit `import` prefix is provided
+- `exports.components` (optional) points to the barrel file that `nocta-ui add` keeps in sync (shared UI workspaces default to `src/index.ts`)
 - The `workspace` block records the current package role, npm name, relative root, and any linked workspaces the CLI should write to
 
 The CLI also maintains a repository manifest named `nocta.workspace.json` at the repo root:

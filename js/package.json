@@ -1,6 +1,6 @@
 {
   "name": "@nocta-ui/cli",
-  "version": "0.2.0",
+  "version": "0.2.0-alpha",
   "description": "CLI for Nocta UI Components Library",
   "license": "MIT",
   "bin": {

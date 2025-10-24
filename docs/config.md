@@ -15,6 +15,7 @@ Created by `nocta-ui init`, this file describes how the CLI should scaffold comp
 | `tailwind.css` | string | Relative path to the Tailwind entry file (for design token injection). |
 | `aliases` | object | File system destinations and optional import aliases for components and utilities. |
 | `aliasPrefixes` | object (optional) | Overrides for the shorthand aliases used when `aliases.*.import` is not provided. |
+| `exports` | object (optional) | Controls auto-generated export barrels (e.g. `src/index.ts`). |
 | `workspace` | object (optional) | Metadata about the workspace in monorepo scenarios (kind, root, links). |
 
 ### `aliases`
@@ -47,6 +48,25 @@ An optional object with `components` and `utils` entries. It is primarily useful
 ```
 
 React Router projects default to `"~"`; other frameworks default to `"@"`.
+
+### `exports`
+Configures export barrels that the CLI should maintain. When set, `nocta-ui add` keeps the corresponding file up to date with named re-exports for every component it installs.
+
+```json
+"exports": {
+  "components": {
+    "barrel": "src/index.ts",
+    "strategy": "named"
+  }
+}
+```
+
+- `barrel` (string) – Relative path (from the workspace root) to the file that should contain exports.
+- `strategy` (`"named"`, default) – Determines how exports are emitted. Currently only named re-exports are supported.
+
+Shared UI workspaces created with the latest CLI automatically receive `"src/index.ts"` as the default barrel so teams can import from the package root out of the box. You can customize the path (for example, `"components/ui/index.ts"`) or remove the block entirely if you prefer to manage exports manually.
+
+When `init` runs in a shared UI workspace, the CLI also ensures `package.json` exposes the barrel via `exports["."]`. Dry runs report the planned change; real runs rewrite the file in place if needed.
 
 ### `workspace`
 Describes the current workspace so the CLI can coordinate multi-package repos.

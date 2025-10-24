@@ -62,6 +62,8 @@ pub struct Config {
     #[serde(default)]
     pub alias_prefixes: Option<AliasPrefixes>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exports: Option<ExportsConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<WorkspaceConfig>,
 }
 
@@ -82,6 +84,56 @@ pub struct Aliases {
 pub struct AliasPrefixes {
     pub components: Option<String>,
     pub utils: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportsConfig {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub components: Option<ExportsTargetConfig>,
+}
+
+impl ExportsConfig {
+    pub fn components(&self) -> Option<&ExportsTargetConfig> {
+        self.components.as_ref()
+    }
+
+    pub fn components_mut(&mut self) -> Option<&mut ExportsTargetConfig> {
+        self.components.as_mut()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExportsTargetConfig {
+    pub barrel: String,
+    #[serde(default)]
+    pub strategy: ExportStrategy,
+}
+
+impl ExportsTargetConfig {
+    pub fn new(barrel: impl Into<String>) -> Self {
+        Self {
+            barrel: barrel.into(),
+            strategy: ExportStrategy::Named,
+        }
+    }
+
+    pub fn barrel_path(&self) -> &str {
+        &self.barrel
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ExportStrategy {
+    Named,
+}
+
+impl Default for ExportStrategy {
+    fn default() -> Self {
+        ExportStrategy::Named
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
