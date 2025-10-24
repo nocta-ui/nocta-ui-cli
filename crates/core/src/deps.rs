@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use semver::{Version, VersionReq};
 use serde::Deserialize;
 
-use crate::workspace::{PackageManagerContext, PackageManagerKind, detect_package_manager};
+use crate::workspace::{detect_package_manager, PackageManagerContext, PackageManagerKind};
 
 const YARN_PNP_MARKERS: [&str; 3] = [".pnp.cjs", ".pnp.js", ".pnp.loader.mjs"];
 
@@ -25,6 +25,63 @@ pub struct RequirementIssue {
     pub installed: Option<String>,
     pub declared: Option<String>,
     pub reason: RequirementIssueReason,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DependencyInstallPlan {
+    pub package_manager: PackageManagerKind,
+    pub program: String,
+    pub args: Vec<String>,
+    pub working_directory: PathBuf,
+    pub workspace_descriptor: Option<String>,
+    pub dependencies: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DependencyInstallOutcome {
+    Skipped,
+    Executed(DependencyInstallPlan),
+}
+
+impl DependencyInstallPlan {
+    pub fn command_line(&self) -> Vec<String> {
+        let mut line = Vec::with_capacity(1 + self.args.len());
+        line.push(self.program.clone());
+        line.extend(self.args.clone());
+        line
+    }
+
+    pub fn target_label(&self) -> Option<&str> {
+        self.workspace_descriptor.as_deref()
+    }
+
+    pub fn execute(&self) -> Result<()> {
+        let mut command = Command::new(&self.program);
+        command.args(&self.args);
+        command.current_dir(&self.working_directory);
+        let status = command.status().with_context(|| {
+            let target = self
+                .workspace_descriptor
+                .as_deref()
+                .map(|descriptor| format!(" {}", descriptor))
+                .unwrap_or_default();
+            format!(
+                "failed to spawn {} to install dependencies{}",
+                self.package_manager.as_str(),
+                target
+            )
+        })?;
+
+        if !status.success() {
+            anyhow::bail!(
+                "{} install command exited with status {}",
+                self.package_manager.as_str(),
+                status
+            );
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -127,12 +184,12 @@ pub fn get_installed_dependencies() -> Result<HashMap<String, String>> {
     get_installed_dependencies_at(Path::new("."))
 }
 
-pub fn install_dependencies(
+pub fn plan_dependency_install(
     dependencies: &HashMap<String, String>,
     context: &PackageManagerContext,
-) -> Result<()> {
+) -> Result<Option<DependencyInstallPlan>> {
     if dependencies.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
 
     let mut deps_with_versions: Vec<String> = dependencies
@@ -149,120 +206,98 @@ pub fn install_dependencies(
     let workspace_descriptor = context
         .workspace_package
         .as_deref()
-        .map(|pkg| format!(" workspace `{}`", pkg))
+        .map(|pkg| format!("workspace `{}`", pkg))
         .or_else(|| {
             context
                 .workspace_root
                 .as_ref()
-                .map(|root| format!(" in {}", root.display()))
-        })
-        .unwrap_or_default();
+                .map(|root| format!("directory {}", root.display()))
+        });
 
-    let message_suffix = if workspace_descriptor.is_empty() {
-        String::new()
-    } else {
-        workspace_descriptor.clone()
-    };
+    let repo_root = context.repo_root.clone();
+    let workspace_root = context.workspace_root.clone();
+    let workspace_package = context.workspace_package.clone();
 
-    println!(
-        "Installing dependencies with {}{}...",
-        pm_kind.as_str(),
-        message_suffix
-    );
-
-    let repo_root = &context.repo_root;
-    let workspace_root = context.workspace_root.as_ref();
-    let workspace_package = context.workspace_package.as_deref();
-
-    let status = match pm_kind {
+    let (program, args, working_directory) = match pm_kind {
         PackageManagerKind::Yarn => {
-            let mut command = Command::new("yarn");
-            if let Some(package) = workspace_package {
-                command.arg("workspace");
-                command.arg(package);
-                command.arg("add");
+            let mut args = Vec::new();
+            if let Some(package) = workspace_package.as_deref() {
+                args.push("workspace".into());
+                args.push(package.to_string());
+                args.push("add".into());
+                args.extend(deps_with_versions.clone());
+                ( "yarn".into(), args, repo_root.clone() )
             } else {
-                command.arg("add");
+                args.push("add".into());
+                args.extend(deps_with_versions.clone());
+                let working_dir = workspace_root.clone().unwrap_or_else(|| repo_root.clone());
+                ("yarn".into(), args, working_dir)
             }
-            command.args(&deps_with_versions);
-            if workspace_package.is_some() {
-                command.current_dir(repo_root);
-            } else if let Some(root) = workspace_root {
-                command.current_dir(root);
-            } else {
-                command.current_dir(repo_root);
-            }
-            command.status()
         }
         PackageManagerKind::Pnpm => {
-            let mut command = Command::new("pnpm");
-            command.arg("add");
-            match (workspace_package, workspace_root) {
+            let mut args = vec!["add".into()];
+            match (workspace_package.as_deref(), workspace_root.as_ref()) {
                 (Some(package), _) => {
-                    command.arg("--filter");
-                    command.arg(package);
-                    command.current_dir(repo_root);
+                    args.push("--filter".into());
+                    args.push(package.to_string());
+                    args.extend(deps_with_versions.clone());
+                    ("pnpm".into(), args, repo_root.clone())
                 }
                 (None, Some(root)) => {
-                    command.current_dir(root);
+                    args.extend(deps_with_versions.clone());
+                    ("pnpm".into(), args, root.clone())
                 }
                 _ => {
-                    command.current_dir(repo_root);
+                    args.extend(deps_with_versions.clone());
+                    ("pnpm".into(), args, repo_root.clone())
                 }
             }
-            command.args(&deps_with_versions);
-            command.status()
         }
         PackageManagerKind::Bun => {
-            let mut command = Command::new("bun");
-            command.arg("add");
-            command.args(&deps_with_versions);
-            if let Some(root) = workspace_root {
-                command.arg("--cwd");
-                command.arg(root.as_os_str());
-                command.current_dir(repo_root);
-            } else {
-                command.current_dir(repo_root);
+            let mut args = vec!["add".into()];
+            args.extend(deps_with_versions.clone());
+            if let Some(root) = workspace_root.as_ref() {
+                args.push("--cwd".into());
+                args.push(root.to_string_lossy().into_owned());
             }
-            command.status()
+            ("bun".into(), args, repo_root.clone())
         }
         PackageManagerKind::Npm => {
-            let mut command = Command::new("npm");
-            command.arg("install");
-            command.args(&deps_with_versions);
-            if let Some(package) = workspace_package {
-                command.arg("--workspace");
-                command.arg(package);
-                command.current_dir(repo_root);
-            } else if let Some(root) = workspace_root {
-                command.current_dir(root);
+            let mut args = vec!["install".into()];
+            args.extend(deps_with_versions.clone());
+            if let Some(package) = workspace_package.as_deref() {
+                args.push("--workspace".into());
+                args.push(package.to_string());
+                ("npm".into(), args, repo_root.clone())
+            } else if let Some(root) = workspace_root.as_ref() {
+                ("npm".into(), args, root.clone())
             } else {
-                command.current_dir(repo_root);
+                ("npm".into(), args, repo_root.clone())
             }
-            command.status()
         }
-    }
-    .with_context(|| {
-        let target = workspace_package
-            .map(|pkg| format!(" workspace `{}`", pkg))
-            .or_else(|| workspace_root.map(|root| format!(" directory {}", root.display())))
-            .unwrap_or_else(|| " project root".to_string());
-        format!(
-            "failed to spawn {} to install dependencies in{}",
-            pm_kind.as_str(),
-            target
-        )
-    })?;
+    };
 
-    if !status.success() {
-        anyhow::bail!(
-            "{} install command exited with status {}",
-            pm_kind.as_str(),
-            status
-        );
-    }
+    Ok(Some(DependencyInstallPlan {
+        package_manager: pm_kind,
+        program,
+        args,
+        working_directory,
+        workspace_descriptor,
+        dependencies: deps_with_versions,
+    }))
+}
 
-    Ok(())
+pub fn install_dependencies(
+    dependencies: &HashMap<String, String>,
+    context: &PackageManagerContext,
+) -> Result<DependencyInstallOutcome> {
+    let plan = match plan_dependency_install(dependencies, context)? {
+        Some(plan) => plan,
+        None => return Ok(DependencyInstallOutcome::Skipped),
+    };
+
+    plan.execute()?;
+    Ok(DependencyInstallOutcome::Executed(plan))
 }
 
 pub fn check_project_requirements(

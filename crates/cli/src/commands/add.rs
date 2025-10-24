@@ -1,22 +1,23 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ffi::OsStr;
-use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use dialoguer::Confirm;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
 use owo_colors::OwoColorize;
 use pathdiff::diff_paths;
 use regex::Regex;
 
+use crate::commands::{CommandOutcome, CommandResult};
+use crate::reporter::ConsoleReporter;
+use crate::util::{canonicalize_path, create_spinner, normalize_relative_path};
 use nocta_core::config::{read_config, read_config_from};
 use nocta_core::deps::{
-    RequirementIssueReason, check_project_requirements, get_installed_dependencies_at,
-    install_dependencies,
+    plan_dependency_install, RequirementIssueReason, check_project_requirements,
+    get_installed_dependencies_at,
 };
 use nocta_core::framework::{FrameworkDetection, FrameworkKind, detect_framework};
 use nocta_core::fs::{file_exists, write_file};
@@ -42,148 +43,263 @@ static IMPORT_NORMALIZE_RE: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r#"(['"])@/([^'"\n]+)(['"])"#).expect("valid import normalization regex")
 });
 
-pub fn run(client: &RegistryClient, args: AddArgs) -> Result<()> {
-    let dry_run = args.dry_run;
-    let prefix = if dry_run { "[dry-run] " } else { "" };
-    let mut written_paths: Vec<PathBuf> = Vec::new();
-
-    let pb = create_spinner(format!(
-        "{}Adding {}...",
-        prefix,
-        if args.components.len() > 1 {
-            format!("{} components", args.components.len())
-        } else {
-            args.components[0].clone()
-        }
-    ));
-
-    let result = add_inner(
-        client,
-        args,
-        dry_run,
-        prefix,
-        pb.clone(),
-        &mut written_paths,
-    );
-
-    match result {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            pb.finish_and_clear();
-            if !dry_run && !written_paths.is_empty() {
-                let _ = rollback_changes(&written_paths);
-                println!("{}", "Rolled back written component files".yellow());
-            }
-            Err(err)
-        }
-    }
-}
-
-fn add_inner(
-    client: &RegistryClient,
+struct AddCommand<'a> {
+    client: &'a RegistryClient,
+    reporter: &'a ConsoleReporter,
     args: AddArgs,
     dry_run: bool,
-    prefix: &str,
-    pb: ProgressBar,
-    written_paths: &mut Vec<PathBuf>,
-) -> Result<()> {
-    let config = match read_config()? {
-        Some(config) => config,
-        None => {
-            pb.finish_and_clear();
-            println!("{}", "nocta.config.json not found".red());
-            println!("{}", "Run \"npx nocta-ui init\" first".yellow());
-            return Ok(());
+    prefix: String,
+    spinner: ProgressBar,
+    written_paths: Vec<PathBuf>,
+}
+
+impl<'a> AddCommand<'a> {
+    fn new(client: &'a RegistryClient, reporter: &'a ConsoleReporter, args: AddArgs) -> Self {
+        let dry_run = args.dry_run;
+        let prefix = if dry_run {
+            "[dry-run] ".to_string()
+        } else {
+            String::new()
+        };
+        let label = if args.components.len() > 1 {
+            format!("{}Adding {} components...", prefix, args.components.len())
+        } else {
+            format!(
+                "{}Adding {}...",
+                prefix,
+                args.components
+                    .first()
+                    .cloned()
+                    .unwrap_or_else(|| "component".into())
+            )
+        };
+        let spinner = create_spinner(label);
+        Self {
+            client,
+            reporter,
+            args,
+            dry_run,
+            prefix,
+            spinner,
+            written_paths: Vec::new(),
         }
-    };
+    }
 
-    pb.set_message(format!("{}Detecting framework...", prefix));
-    let framework_detection = detect_framework();
-    let workspace_context = build_workspace_context(&config, &framework_detection)?;
+    fn execute(&mut self) -> CommandResult {
+        let config = match self.load_config()? {
+            Some(config) => config,
+            None => return Ok(CommandOutcome::NoOp),
+        };
 
-    pb.set_message(format!("{}Fetching components and dependencies...", prefix));
-    let registry = client.fetch_registry()?;
-    let lookup = build_component_lookup(&registry.components);
+        self.spinner
+            .set_message(format!("{}Detecting framework...", self.prefix));
+        let framework_detection = detect_framework();
+        let workspace_context = self.build_workspace_context(&config, &framework_detection)?;
 
-    let mut requested_slugs = Vec::new();
-    for name in &args.components {
-        match lookup.get(&name.to_lowercase()) {
-            Some(slug) => requested_slugs.push(slug.clone()),
+        self.spinner.set_message(format!(
+            "{}Fetching components and dependencies...",
+            self.prefix
+        ));
+        let lookup = self.fetch_component_lookup()?;
+        let requested_slugs = match self.resolve_requested_components(&lookup)? {
+            Some(slugs) => slugs,
             None => {
-                pb.finish_and_clear();
-                println!("{}", format!("Component \"{}\" not found", name).red());
-                println!(
-                    "{}",
-                    "Run \"npx nocta-ui list\" to see available components".yellow()
-                );
-                return Ok(());
+                self.finish();
+                return Ok(CommandOutcome::NoOp);
             }
+        };
+        let component_entries = collect_components(self.client, &requested_slugs)?;
+        let requested_entries: Vec<_> = component_entries
+            .iter()
+            .filter(|entry| requested_slugs.contains(&entry.slug))
+            .cloned()
+            .collect();
+        let dependency_entries: Vec<_> = component_entries
+            .iter()
+            .filter(|entry| !requested_slugs.contains(&entry.slug))
+            .cloned()
+            .collect();
+
+        self.spinner.finish_and_clear();
+        self.print_component_plan(&requested_entries, &dependency_entries);
+
+        let mut prep_spinner = create_spinner(if self.dry_run {
+            "[dry-run] Preparing components..."
+        } else {
+            "Preparing components..."
+        });
+
+        let (all_component_files, deps_by_workspace) =
+            gather_component_files(self.client, &component_entries, &workspace_context)?;
+
+        prep_spinner.set_message("Checking existing files...");
+        let existing_files = find_existing_files(&all_component_files);
+
+        if !existing_files.is_empty() {
+            prep_spinner.finish_and_clear();
+            if !self.handle_existing_files(&existing_files, &all_component_files)? {
+                return Ok(CommandOutcome::NoOp);
+            }
+        } else {
+            self.write_component_files(&mut prep_spinner, &all_component_files)?;
+            prep_spinner.finish_and_clear();
         }
-    }
 
-    let component_entries = collect_components(client, &requested_slugs)?;
-    let requested_entries: Vec<_> = component_entries
-        .iter()
-        .filter(|entry| requested_slugs.contains(&entry.slug))
-        .cloned()
-        .collect();
+        if deps_by_workspace.values().any(|deps| !deps.is_empty()) {
+            handle_workspace_dependencies(
+                self.dry_run,
+                &workspace_context,
+                &deps_by_workspace,
+                self.reporter,
+            )?;
+        }
 
-    let dependency_entries: Vec<_> = component_entries
-        .iter()
-        .filter(|entry| !requested_slugs.contains(&entry.slug))
-        .cloned()
-        .collect();
-
-    pb.finish_and_clear();
-    println!(
-        "{}",
-        format!(
-            "Installing {}:",
-            if args.components.len() > 1 {
-                format!("{} components", args.components.len())
+        let final_spinner = create_spinner(format!(
+            "{}{}",
+            self.prefix,
+            if self.args.components.len() > 1 {
+                format!("{} components", self.args.components.len())
             } else {
-                args.components[0].clone()
+                self.args.components[0].clone()
             }
-        )
-        .blue()
-    );
+        ));
+        final_spinner.finish_with_message(format!(
+            "{}{} {}",
+            self.prefix,
+            if self.args.components.len() > 1 {
+                format!("{} components", self.args.components.len())
+            } else {
+                self.args.components[0].clone()
+            },
+            if self.dry_run {
+                "would be added"
+            } else {
+                "added successfully!"
+            }
+        ));
 
-    for entry in &requested_entries {
-        println!(
-            "   {}",
-            format!("• {} (requested)", entry.component.name).green()
+        print_add_summary(
+            self.reporter,
+            self.dry_run,
+            &workspace_context,
+            &requested_entries,
+            &all_component_files,
         );
+
+        Ok(CommandOutcome::Completed)
     }
 
-    if !dependency_entries.is_empty() {
-        println!("\n{}", "With internal dependencies:".blue());
-        for entry in &dependency_entries {
-            println!("   {}", format!("• {}", entry.component.name).dimmed());
+    fn load_config(&mut self) -> Result<Option<Config>> {
+        match read_config()? {
+            Some(config) => Ok(Some(config)),
+            None => {
+                self.spinner.finish_and_clear();
+                self.reporter
+                    .error(format!("{}", "nocta.config.json not found".red()));
+                self.reporter
+                    .warn(format!("{}", "Run \"npx nocta-ui init\" first".yellow()));
+                Ok(None)
+            }
         }
     }
 
-    println!("");
-    let pb = create_spinner("Preparing components...".into());
+    fn build_workspace_context(
+        &self,
+        config: &Config,
+        detection: &FrameworkDetection,
+    ) -> Result<WorkspaceContext> {
+        build_workspace_context(config, detection)
+    }
 
-    let (all_component_files, deps_by_workspace) =
-        gather_component_files(client, &component_entries, &workspace_context)?;
+    fn fetch_component_lookup(&self) -> Result<HashMap<String, String>> {
+        let registry = self.client.fetch_registry()?;
+        Ok(build_component_lookup(&registry.components))
+    }
 
-    pb.set_message("Checking existing files...");
-    let existing_files = find_existing_files(&all_component_files);
+    fn resolve_requested_components(
+        &mut self,
+        lookup: &HashMap<String, String>,
+    ) -> Result<Option<Vec<String>>> {
+        let mut slugs = Vec::new();
+        for name in &self.args.components {
+            match lookup.get(&name.to_lowercase()) {
+                Some(slug) => slugs.push(slug.clone()),
+                None => {
+                    self.spinner.finish_and_clear();
+                    self.reporter.error(format!(
+                        "{}",
+                        format!("Component \"{}\" not found", name).red()
+                    ));
+                    self.reporter.warn(format!(
+                        "{}",
+                        "Run \"npx nocta-ui list\" to see available components".yellow()
+                    ));
+                    return Ok(None);
+                }
+            }
+        }
+        Ok(Some(slugs))
+    }
 
-    if !existing_files.is_empty() {
-        pb.finish_and_clear();
-        println!("{}", "The following files already exist:".yellow());
-        for path in &existing_files {
-            println!("   {}", path.display().to_string().dimmed());
+    fn print_component_plan(
+        &self,
+        requested_entries: &[ComponentEntry],
+        dependency_entries: &[ComponentEntry],
+    ) {
+        self.reporter.info(format!(
+            "{}",
+            format!(
+                "Installing {}:",
+                if self.args.components.len() > 1 {
+                    format!("{} components", self.args.components.len())
+                } else {
+                    self.args.components[0].clone()
+                }
+            )
+            .blue()
+        ));
+
+        for entry in requested_entries {
+            self.reporter.info(format!(
+                "   {}",
+                format!("• {} (requested)", entry.component.name).green()
+            ));
         }
 
-        if dry_run {
-            println!("\n{}", "[dry-run] Would overwrite the files above".blue());
-            println!("");
-            let pb = create_spinner("[dry-run] Preparing file writes...".into());
-            write_component_files(&all_component_files, dry_run, written_paths)?;
-            pb.finish_and_clear();
+        if !dependency_entries.is_empty() {
+            self.reporter
+                .info(format!("{}", "\nWith internal dependencies:".blue()));
+            for entry in dependency_entries {
+                self.reporter.info(format!(
+                    "   {}",
+                    format!("• {}", entry.component.name).dimmed()
+                ));
+            }
+        }
+
+        self.reporter.blank();
+    }
+
+    fn handle_existing_files(
+        &mut self,
+        existing_files: &[PathBuf],
+        component_files: &[ComponentFileWithContent],
+    ) -> Result<bool> {
+        self.reporter
+            .warn(format!("{}", "The following files already exist:".yellow()));
+        for path in existing_files {
+            self.reporter
+                .info(format!("   {}", path.display().to_string().dimmed()));
+        }
+
+        if self.dry_run {
+            self.reporter
+                .info(format!("\n{}", "[dry-run] Would overwrite the files above".blue()));
+            self.reporter.blank();
+            let spinner = create_spinner("[dry-run] Preparing file writes...");
+            write_component_files(component_files, true, &mut self.written_paths)?;
+            spinner.finish_and_clear();
+            Ok(true)
         } else {
             let overwrite = Confirm::new()
                 .with_prompt("Do you want to overwrite these files?")
@@ -191,72 +307,59 @@ fn add_inner(
                 .interact()?;
 
             if !overwrite {
-                println!("{}", "Installation cancelled".red());
-                return Ok(());
+                self.reporter
+                    .warn(format!("{}", "Installation cancelled".red()));
+                return Ok(false);
             }
 
-            let pb = create_spinner("Installing component files...".into());
-            write_component_files(&all_component_files, dry_run, written_paths)?;
-            pb.finish_and_clear();
+            let spinner = create_spinner("Installing component files...");
+            write_component_files(component_files, false, &mut self.written_paths)?;
+            spinner.finish_and_clear();
+            Ok(true)
         }
-    } else {
-        if dry_run {
-            pb.set_message("[dry-run] Preparing file writes...");
-        } else {
-            pb.set_message("Installing component files...");
-        }
-        write_component_files(&all_component_files, dry_run, written_paths)?;
-        pb.finish_and_clear();
     }
 
-    if deps_by_workspace.values().any(|deps| !deps.is_empty()) {
-        handle_workspace_dependencies(dry_run, &workspace_context, &deps_by_workspace)?;
+    fn write_component_files(
+        &mut self,
+        spinner: &mut ProgressBar,
+        component_files: &[ComponentFileWithContent],
+    ) -> Result<()> {
+        if self.dry_run {
+            spinner.set_message("[dry-run] Preparing file writes...");
+        } else {
+            spinner.set_message("Installing component files...");
+        }
+        write_component_files(component_files, self.dry_run, &mut self.written_paths)?;
+        Ok(())
     }
 
-    let pb = create_spinner(format!(
-        "{}{}",
-        prefix,
-        if args.components.len() > 1 {
-            format!("{} components", args.components.len())
-        } else {
-            args.components[0].clone()
-        }
-    ));
-    pb.finish_with_message(format!(
-        "{}{} {}",
-        prefix,
-        if args.components.len() > 1 {
-            format!("{} components", args.components.len())
-        } else {
-            args.components[0].clone()
-        },
-        if dry_run {
-            "would be added"
-        } else {
-            "added successfully!"
-        }
-    ));
+    fn finish(&mut self) {
+        self.spinner.finish_and_clear();
+    }
 
-    print_add_summary(
-        dry_run,
-        &workspace_context,
-        &requested_entries,
-        &all_component_files,
-    );
-
-    Ok(())
+    fn rollback(&self) {
+        if !self.dry_run && !self.written_paths.is_empty() {
+            let _ = rollback_changes(&self.written_paths);
+            self.reporter
+                .warn(format!("{}", "Rolled back written component files".yellow()));
+        }
+    }
 }
 
-fn create_spinner(message: String) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    pb.enable_steady_tick(Duration::from_millis(80));
-    pb.set_message(message);
-    pb
+pub fn run(
+    client: &RegistryClient,
+    reporter: &ConsoleReporter,
+    args: AddArgs,
+) -> CommandResult {
+    let mut command = AddCommand::new(client, reporter, args);
+    match command.execute() {
+        Ok(outcome) => Ok(outcome),
+        Err(err) => {
+            command.finish();
+            command.rollback();
+            Err(err)
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -311,27 +414,6 @@ struct ComponentFileWithContent {
     display_path: PathBuf,
     content: String,
     component_name: String,
-}
-
-fn canonicalize_path(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
-}
-
-fn normalize_relative_path(path: &Path) -> String {
-    if path.as_os_str().is_empty() {
-        return ".".into();
-    }
-    let mut normalized = path.to_string_lossy().replace('\\', "/");
-    if normalized.is_empty() {
-        normalized = ".".into();
-    }
-    if normalized.starts_with("./") {
-        normalized = normalized.trim_start_matches("./").to_string();
-        if normalized.is_empty() {
-            normalized = ".".into();
-        }
-    }
-    normalized
 }
 
 fn resolve_alias_prefix(config: &Config, detection: Option<&FrameworkDetection>) -> String {
@@ -780,6 +862,7 @@ fn handle_workspace_dependencies(
     dry_run: bool,
     context: &WorkspaceContext,
     deps_by_workspace: &HashMap<String, BTreeMap<String, String>>,
+    reporter: &ConsoleReporter,
 ) -> Result<()> {
     for handle in context.handles() {
         let required = match deps_by_workspace.get(&handle.id) {
@@ -832,9 +915,9 @@ fn handle_workspace_dependencies(
 
         if !satisfied.is_empty() {
             let satisfied_heading = format!("Dependencies already satisfied in {}:", handle.label);
-            println!("\n{}", satisfied_heading.green());
+            reporter.info(format!("\n{}", satisfied_heading.green()));
             for entry in satisfied {
-                println!("   {}", entry.dimmed());
+                reporter.info(format!("   {}", entry.dimmed()));
             }
         }
 
@@ -847,9 +930,9 @@ fn handle_workspace_dependencies(
             } else {
                 format!("Incompatible dependencies updated in {}:", handle.label)
             };
-            println!("\n{}", incompatible_heading.yellow());
+            reporter.warn(format!("\n{}", incompatible_heading.yellow()));
             for entry in &incompatible {
-                println!("   {}", entry.dimmed());
+                reporter.info(format!("   {}", entry.dimmed()));
             }
         }
 
@@ -859,21 +942,33 @@ fn handle_workspace_dependencies(
             } else {
                 format!("Installing missing dependencies in {}...", handle.label)
             };
-            println!("\n{}", install_heading.blue());
+            reporter.info(format!("\n{}", install_heading.blue()));
             for (dep, version) in &deps_to_install {
-                println!("   {}", format!("{}@{}", dep, version).dimmed());
+                reporter.info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
             }
 
-            if !dry_run {
-                let install_map: HashMap<String, String> = deps_to_install
-                    .iter()
-                    .map(|(k, v)| (k.clone(), v.clone()))
-                    .collect();
-                install_dependencies(&install_map, &handle.package_manager_context)?;
-                println!(
+            let install_map: HashMap<String, String> = deps_to_install
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+
+            if dry_run {
+                if let Some(plan) =
+                    plan_dependency_install(&install_map, &handle.package_manager_context)?
+                {
+                    reporter.info(format!(
+                        "{}",
+                        format!("   Command: {}", plan.command_line().join(" ")).dimmed()
+                    ));
+                }
+            } else if let Some(plan) =
+                plan_dependency_install(&install_map, &handle.package_manager_context)?
+            {
+                plan.execute()?;
+                reporter.info(format!(
                     "{}",
                     format!("Dependencies installed for {}.", handle.label).green()
-                );
+                ));
             }
         }
     }
@@ -882,12 +977,15 @@ fn handle_workspace_dependencies(
 }
 
 fn print_add_summary(
+    reporter: &ConsoleReporter,
     dry_run: bool,
     context: &WorkspaceContext,
     requested_components: &[ComponentEntry],
     files: &[ComponentFileWithContent],
 ) {
-    println!("\n{}", "Components installed:".green());
+    reporter.blank();
+    reporter
+        .info(format!("{}", "Components installed:".green()));
 
     let mut files_by_workspace: BTreeMap<String, Vec<&ComponentFileWithContent>> = BTreeMap::new();
     for file in files {
@@ -899,12 +997,13 @@ fn print_add_summary(
 
     for (workspace_id, entries) in &files_by_workspace {
         if let Some(handle) = context.handle_by_id(workspace_id) {
-            println!("{}", format!("  Workspace {}:", handle.label).blue());
+            reporter.info(format!("{}", format!("  Workspace {}:", handle.label).blue()));
             for file in entries {
-                println!(
+                reporter.info(format!(
                     "     {}",
-                    format!("{} ({})", file.display_path.display(), file.component_name).dimmed()
-                );
+                    format!("{} ({})", file.display_path.display(), file.component_name)
+                        .dimmed()
+                ));
             }
         }
     }
@@ -914,7 +1013,7 @@ fn print_add_summary(
     } else {
         "Import and use:".blue()
     };
-    println!("\n{}", heading);
+    reporter.info(format!("\n{}", heading));
 
     let primary_handle =
         select_workspace_handle(context, None).unwrap_or_else(|_| context.primary());
@@ -933,7 +1032,7 @@ fn print_add_summary(
             let relative_path = component_relative_path(primary_handle, &raw_path)
                 .unwrap_or_else(|| raw_path.clone());
 
-            println!(
+            reporter.info(format!(
                 "   {}",
                 format!(
                     "import {{ {} }} from \"{}\"; // {}",
@@ -946,7 +1045,7 @@ fn print_add_summary(
                     component.component.name
                 )
                 .dimmed()
-            );
+            ));
         }
     }
 
@@ -955,9 +1054,9 @@ fn print_add_summary(
         .filter(|entry| !entry.component.variants.is_empty())
         .collect();
     if !variants.is_empty() {
-        println!("\n{}", "Available variants:".blue());
+        reporter.info(format!("\n{}", "Available variants:".blue()));
         for entry in variants {
-            println!(
+            reporter.info(format!(
                 "   {}",
                 format!(
                     "{}: {}",
@@ -965,7 +1064,7 @@ fn print_add_summary(
                     entry.component.variants.join(", ")
                 )
                 .dimmed()
-            );
+            ));
         }
     }
 
@@ -974,9 +1073,9 @@ fn print_add_summary(
         .filter(|entry| !entry.component.sizes.is_empty())
         .collect();
     if !sizes.is_empty() {
-        println!("\n{}", "Available sizes:".blue());
+        reporter.info(format!("\n{}", "Available sizes:".blue()));
         for entry in sizes {
-            println!(
+            reporter.info(format!(
                 "   {}",
                 format!(
                     "{}: {}",
@@ -984,7 +1083,7 @@ fn print_add_summary(
                     entry.component.sizes.join(", ")
                 )
                 .dimmed()
-            );
+            ));
         }
     }
 }

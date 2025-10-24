@@ -1,19 +1,23 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use dialoguer::{Input, MultiSelect, Select, theme::ColorfulTheme};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use owo_colors::OwoColorize;
 use pathdiff::diff_paths;
 use serde_json::Value;
 
+use crate::commands::{CommandOutcome, CommandResult};
+use crate::reporter::ConsoleReporter;
+use crate::util::{
+    canonicalize_path, create_spinner, normalize_relative_path, normalize_relative_path_buf,
+};
 use nocta_core::config::{read_config, write_config};
 use nocta_core::deps::{
-    RequirementIssue, RequirementIssueReason, check_project_requirements, install_dependencies,
+    plan_dependency_install, RequirementIssue, RequirementIssueReason, check_project_requirements,
 };
 use nocta_core::framework::{AppStructure, FrameworkKind, detect_framework};
 use nocta_core::fs::{file_exists, write_file};
@@ -34,6 +38,422 @@ use nocta_core::workspace::{
 pub struct InitArgs {
     #[arg(long = "dry-run")]
     pub dry_run: bool,
+}
+
+struct InitCommand<'a> {
+    client: &'a RegistryClient,
+    reporter: &'a ConsoleReporter,
+    dry_run: bool,
+    prefix: String,
+    spinner: ProgressBar,
+    created_paths: Vec<PathBuf>,
+}
+
+impl<'a> InitCommand<'a> {
+    fn new(client: &'a RegistryClient, reporter: &'a ConsoleReporter, args: InitArgs) -> Self {
+        let dry_run = args.dry_run;
+        let prefix = if dry_run {
+            "[dry-run] ".to_string()
+        } else {
+            String::new()
+        };
+        let spinner = create_spinner(format!("{}Initializing nocta-ui...", prefix));
+        Self {
+            client,
+            reporter,
+            dry_run,
+            prefix,
+            spinner,
+            created_paths: Vec::new(),
+        }
+    }
+
+    fn execute(&mut self) -> CommandResult {
+        if read_config()?.is_some() {
+            self.spinner.finish_and_clear();
+            self.reporter
+                .warn(format!("{}", "nocta.config.json already exists!".yellow()));
+            self.reporter
+                .info(format!("{}", "Your project is already initialized.".dimmed()));
+            return Ok(CommandOutcome::NoOp);
+        }
+
+        let workspace = self.resolve_workspace()?;
+        let tailwind = match self.ensure_tailwind_installed()? {
+            Some(check) => check,
+            None => return Ok(CommandOutcome::NoOp),
+        };
+        let framework_detection = match self.detect_framework(&workspace)? {
+            Some(detection) => detection,
+            None => return Ok(CommandOutcome::NoOp),
+        };
+        let requirements = self.client.registry_requirements()?;
+        let required_dependencies: BTreeMap<String, String> = requirements
+            .iter()
+            .map(|(n, v)| (n.clone(), v.clone()))
+            .collect();
+        let manage_dependencies = dependencies_managed_in_workspace(&workspace);
+
+        self.handle_dependency_checks(manage_dependencies, &workspace, &requirements)?;
+        if !self.ensure_tailwind_v4(&tailwind)? {
+            return Ok(CommandOutcome::NoOp);
+        }
+
+        let mut config = build_config(workspace.config_workspace.kind, &framework_detection)?;
+        config.alias_prefixes = Some(AliasPrefixes {
+            components: Some(config_alias_prefix(&framework_detection)),
+            utils: Some(config_alias_prefix(&framework_detection)),
+        });
+        config.workspace = Some(workspace.config_workspace.clone());
+
+        self.write_config(&config)?;
+        self.handle_dependencies(manage_dependencies, &required_dependencies, &workspace)?;
+
+        let (utils_created, icons_created) =
+            self.sync_registry_assets(manage_dependencies, &config)?;
+        let tokens_added = self.apply_tailwind_tokens(manage_dependencies, &workspace, &config)?;
+        let tailwind_is_v4 = tailwind_v4(&tailwind);
+        self.persist_workspace_manifest(&workspace)?;
+
+        self.finish();
+        self.print_summary(
+            manage_dependencies,
+            &workspace,
+            &required_dependencies,
+            utils_created,
+            icons_created,
+            tokens_added,
+            tailwind_is_v4,
+            &config,
+            &framework_detection,
+        );
+
+        Ok(CommandOutcome::Completed)
+    }
+
+    fn resolve_workspace(&mut self) -> Result<WorkspaceResolution> {
+        self.spinner
+            .set_message(format!("{}Resolving workspace context...", self.prefix));
+        let mut resolved: Option<Result<WorkspaceResolution>> = None;
+        self.spinner.suspend(|| {
+            resolved = Some(resolve_workspace_context());
+        });
+        resolved.expect("workspace resolution to run")
+    }
+
+    fn ensure_tailwind_installed(&mut self) -> Result<Option<TailwindCheck>> {
+        self.spinner.set_message(format!(
+            "{}Checking Tailwind CSS installation...",
+            self.prefix
+        ));
+        let tailwind = check_tailwind_installation();
+        if !tailwind.installed {
+            self.spinner.finish_and_clear();
+            print_tailwind_missing_message(self.reporter, &tailwind);
+            Ok(None)
+        } else {
+            Ok(Some(tailwind))
+        }
+    }
+
+    fn detect_framework(
+        &mut self,
+        workspace: &WorkspaceResolution,
+    ) -> Result<Option<nocta_core::framework::FrameworkDetection>> {
+        self.spinner
+            .set_message(format!("{}Detecting project framework...", self.prefix));
+        let detection = detect_framework();
+        if workspace.config_workspace.kind == WorkspaceKind::App
+            && detection.framework == FrameworkKind::Unknown
+        {
+            self.spinner.finish_and_clear();
+            print_framework_unknown_message(self.reporter, &detection);
+            return Ok(None);
+        }
+        Ok(Some(detection))
+    }
+
+    fn handle_dependency_checks(
+        &mut self,
+        manage_here: bool,
+        workspace: &WorkspaceResolution,
+        requirements: &HashMap<String, String>,
+    ) -> Result<()> {
+        if manage_here {
+            self.spinner
+                .set_message(format!("{}Validating project requirements...", self.prefix));
+            let requirements_base = workspace
+                .package_manager_context
+                .workspace_root
+                .as_ref()
+                .map(|path| path.as_path())
+                .unwrap_or_else(|| Path::new("."));
+            let requirement_issues = check_project_requirements(requirements_base, requirements)?;
+            if !requirement_issues.is_empty() {
+                let dry_run = self.dry_run;
+                let reporter = self.reporter;
+                self.spinner.suspend(|| {
+                    print_requirement_issues(reporter, &requirement_issues, dry_run);
+                });
+            }
+            Ok(())
+        } else {
+            self.spinner.set_message(format!(
+                "{}Skipping dependency installation for linked workspace...",
+                self.prefix
+            ));
+            let reporter = self.reporter;
+            self.spinner.suspend(|| {
+                reporter.info(format!(
+                    "{}",
+                    "Detected linked shared UI workspace(s); skipping dependency checks and installation for this workspace."
+                        .dimmed()
+                ));
+            });
+            Ok(())
+        }
+    }
+
+    fn ensure_tailwind_v4(&mut self, tailwind: &TailwindCheck) -> Result<bool> {
+        if !tailwind_v4(tailwind) {
+            self.spinner.finish_and_clear();
+            print_tailwind_v4_required(self.reporter, tailwind);
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    fn write_config(&mut self, config: &Config) -> Result<()> {
+        self.spinner
+            .set_message(format!("{}Creating configuration...", self.prefix));
+        if self.dry_run {
+            self.reporter.blank();
+            self.reporter
+                .info(format!("{}", "[dry-run] Would create configuration:".blue()));
+            self.reporter
+                .info(format!("   {}", "nocta.config.json".dimmed()));
+            Ok(())
+        } else {
+            write_config(config).context("failed to write nocta.config.json")?;
+            self.created_paths.push(PathBuf::from("nocta.config.json"));
+            Ok(())
+        }
+    }
+
+    fn handle_dependencies(
+        &mut self,
+        manage_here: bool,
+        required: &BTreeMap<String, String>,
+        workspace: &WorkspaceResolution,
+    ) -> Result<()> {
+        if manage_here {
+            let install_map: HashMap<String, String> = required
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+            if self.dry_run {
+                self.spinner.set_message(format!(
+                    "{}[dry-run] Checking required dependencies...",
+                    self.prefix
+                ));
+                self.reporter.blank();
+                self.reporter
+                    .info(format!("{}", "[dry-run] Would install dependencies:".blue()));
+                for (dep, version) in required {
+                    self.reporter
+                        .info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
+                }
+
+                if let Some(plan) =
+                    plan_dependency_install(&install_map, &workspace.package_manager_context)?
+                {
+                    self.reporter.info(format!(
+                        "{}",
+                        format!("   Command: {}", plan.command_line().join(" ")).dimmed()
+                    ));
+                }
+            } else if let Some(plan) =
+                plan_dependency_install(&install_map, &workspace.package_manager_context)?
+            {
+                let target = plan
+                    .target_label()
+                    .map(|label| format!(" {}", label))
+                    .unwrap_or_default();
+
+                self.spinner.set_message(format!(
+                    "{}Installing dependencies with {}{}...",
+                    self.prefix,
+                    plan.package_manager.as_str(),
+                    target
+                ));
+
+                if let Err(err) = plan.execute() {
+                    let command = plan.command_line().join(" ");
+                    let reporter = self.reporter;
+                    self.spinner.suspend(|| {
+                        reporter.warn(format!(
+                            "{}",
+                            "Dependencies installation failed, but you can install them manually"
+                                .yellow()
+                        ));
+                        reporter.info(format!("{}", format!("Run: {}", command).dimmed()));
+                        reporter.error(format!("{}", format!("Error: {}", err).red()));
+                    });
+                }
+            }
+        } else if self.dry_run {
+            self.reporter.blank();
+            self.reporter.info(format!(
+                "{}",
+                "[dry-run] Would skip dependency installation in this workspace (managed via linked shared UI workspace)."
+                    .blue()
+            ));
+        }
+        Ok(())
+    }
+
+    fn sync_registry_assets(
+        &mut self,
+        manage_here: bool,
+        config: &Config,
+    ) -> Result<(Option<PathBuf>, Option<PathBuf>)> {
+        let utils_path = PathBuf::from(format!("{}.ts", config.aliases.utils.filesystem_path()));
+        let icons_path = resolve_component_path("components/icons.ts", config);
+
+        if manage_here {
+            self.spinner
+                .set_message(format!("{}Creating utility functions...", self.prefix));
+            let utils_created = ensure_registry_asset(
+                self.client,
+                self.dry_run,
+                self.reporter,
+                "lib/utils.ts",
+                &utils_path,
+                &mut self.created_paths,
+                "Utility functions",
+            )?;
+
+            self.spinner
+                .set_message(format!("{}Creating base icons component...", self.prefix));
+            let icons_created = ensure_registry_asset(
+                self.client,
+                self.dry_run,
+                self.reporter,
+                "icons/icons.ts",
+                &icons_path,
+                &mut self.created_paths,
+                "Icons component",
+            )?;
+            Ok((
+                utils_created.then_some(utils_path),
+                icons_created.then_some(icons_path),
+            ))
+        } else {
+            self.spinner.set_message(format!(
+                "{}Skipping shared component helpers for linked workspace...",
+                self.prefix
+            ));
+            let reporter = self.reporter;
+            self.spinner.suspend(|| {
+                reporter.info(format!(
+                    "{}",
+                    "Linked shared UI workspace manages shared helpers; skipping utility and icon scaffolding."
+                        .dimmed()
+                ));
+            });
+            Ok((None, None))
+        }
+    }
+
+    fn apply_tailwind_tokens(
+        &mut self,
+        manage_here: bool,
+        _workspace: &WorkspaceResolution,
+        config: &Config,
+    ) -> Result<bool> {
+        let tailwind_css = config.tailwind.css.clone();
+        if !manage_here {
+            return Ok(false);
+        }
+
+        self.spinner
+            .set_message(format!("{}Adding design tokens to CSS...", self.prefix));
+        if self.dry_run {
+            self.reporter.blank();
+            self.reporter.info(format!(
+                "{}",
+                format!("[dry-run] Would update {}", tailwind_css).blue()
+            ));
+            return Ok(true);
+        }
+
+        let added = add_design_tokens_to_css(self.client, &tailwind_css)?;
+        if added {
+            self.created_paths.push(PathBuf::from(&tailwind_css));
+        }
+        Ok(added)
+    }
+
+    fn persist_workspace_manifest(&mut self, workspace: &WorkspaceResolution) -> Result<()> {
+        if self.dry_run {
+            return Ok(());
+        }
+
+        write_workspace_manifest(&workspace.repo_root, &workspace.manifest)
+            .map_err(|err| anyhow!("failed to write {}: {}", WORKSPACE_MANIFEST_FILE, err))?;
+        if !workspace.manifest_existed {
+            self.created_paths.push(workspace.manifest_path.clone());
+        }
+        Ok(())
+    }
+
+    fn print_summary(
+        &self,
+        manage_dependencies_here: bool,
+        workspace: &WorkspaceResolution,
+        dependencies: &BTreeMap<String, String>,
+        utils_path: Option<PathBuf>,
+        icons_path: Option<PathBuf>,
+        tokens_added: bool,
+        tailwind_is_v4: bool,
+        config: &Config,
+        framework_detection: &nocta_core::framework::FrameworkDetection,
+    ) {
+        let framework_label = if framework_detection.framework == FrameworkKind::Unknown {
+            format!(
+                "Custom ({})",
+                workspace_kind_label(workspace.config_workspace.kind)
+            )
+        } else {
+            framework_info(framework_detection)
+        };
+
+        print_init_summary(
+            self.reporter,
+            self.dry_run,
+            config,
+            framework_label,
+            dependencies,
+            !manage_dependencies_here,
+            utils_path.as_deref(),
+            icons_path.as_deref(),
+            tokens_added,
+            tailwind_is_v4,
+            workspace,
+        );
+    }
+
+    fn rollback(&self) {
+        if !self.dry_run && !self.created_paths.is_empty() {
+            let _ = rollback_changes(&self.created_paths);
+            self.reporter
+                .warn(format!("{}", "Rolled back partial changes".yellow()));
+        }
+    }
+
+    fn finish(&mut self) {
+        self.spinner.finish_and_clear();
+    }
 }
 
 #[derive(Debug)]
@@ -186,35 +606,6 @@ fn resolve_workspace_context() -> Result<WorkspaceResolution> {
     })
 }
 
-fn canonicalize_path(path: &Path) -> PathBuf {
-    fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
-}
-
-fn normalize_relative_path(path: &Path) -> String {
-    if path.as_os_str().is_empty() {
-        return ".".into();
-    }
-
-    let mut normalized = path.to_string_lossy().replace('\\', "/");
-    if normalized.is_empty() {
-        normalized = ".".into();
-    }
-    if normalized == "." {
-        return normalized;
-    }
-    if normalized.starts_with("./") {
-        normalized = normalized.trim_start_matches("./").to_string();
-        if normalized.is_empty() {
-            normalized = ".".into();
-        }
-    }
-    normalized
-}
-
-fn normalize_relative_path_buf(path: PathBuf) -> String {
-    normalize_relative_path(&path)
-}
-
 fn guess_workspace_kind(path: &str) -> WorkspaceKind {
     let lower = path.to_ascii_lowercase();
     if lower.contains("/ui") || lower.contains("ui/") || lower.contains("packages/ui") {
@@ -324,331 +715,62 @@ fn workspace_kind_label(kind: WorkspaceKind) -> &'static str {
     }
 }
 
-pub fn run(client: &RegistryClient, args: InitArgs) -> Result<()> {
-    let dry_run = args.dry_run;
-    let prefix = if dry_run { "[dry-run] " } else { "" };
-    let mut created_paths: Vec<PathBuf> = Vec::new();
-
-    let pb = create_spinner(format!("{}Initializing nocta-ui...", prefix));
-
-    let result = init_inner(client, dry_run, prefix, pb.clone(), &mut created_paths);
-
-    match result {
-        Ok(_) => Ok(()),
+pub fn run(
+    client: &RegistryClient,
+    reporter: &ConsoleReporter,
+    args: InitArgs,
+) -> CommandResult {
+    let mut command = InitCommand::new(client, reporter, args);
+    match command.execute() {
+        Ok(outcome) => Ok(outcome),
         Err(err) => {
-            pb.finish_and_clear();
-            if !dry_run && !created_paths.is_empty() {
-                let _ = rollback_changes(&created_paths);
-                println!("{}", "Rolled back partial changes".yellow());
-            }
+            command.finish();
+            command.rollback();
             Err(err)
         }
     }
 }
 
-fn init_inner(
-    client: &RegistryClient,
-    dry_run: bool,
-    prefix: &str,
-    pb: ProgressBar,
-    created_paths: &mut Vec<PathBuf>,
-) -> Result<()> {
-    if read_config()?.is_some() {
-        pb.finish_and_clear();
-        println!("{}", "nocta.config.json already exists!".yellow());
-        println!("{}", "Your project is already initialized.".dimmed());
-        return Ok(());
-    }
-
-    let workspace = {
-        let mut resolved: Option<Result<WorkspaceResolution>> = None;
-        pb.suspend(|| {
-            resolved = Some(resolve_workspace_context());
-        });
-        match resolved.expect("workspace resolution to run") {
-            Ok(value) => value,
-            Err(err) => return Err(err),
-        }
-    };
-
-    pb.set_message(format!("{}Checking Tailwind CSS installation...", prefix));
-    let tailwind = check_tailwind_installation();
-
-    if !tailwind.installed {
-        pb.finish_and_clear();
-        print_tailwind_missing_message(&tailwind);
-        return Ok(());
-    }
-
-    pb.set_message(format!("{}Detecting project framework...", prefix));
-    let framework_detection = detect_framework();
-
-    if workspace.config_workspace.kind == WorkspaceKind::App
-        && framework_detection.framework == FrameworkKind::Unknown
-    {
-        pb.finish_and_clear();
-        print_framework_unknown_message(&framework_detection);
-        return Ok(());
-    }
-
-    let requirements = client.registry_requirements()?;
-    let required_dependencies: BTreeMap<String, String> = requirements
-        .iter()
-        .map(|(name, version)| (name.clone(), version.clone()))
-        .collect();
-
-    let manage_dependencies_here = dependencies_managed_in_workspace(&workspace);
-    if manage_dependencies_here {
-        pb.set_message(format!("{}Validating project requirements...", prefix));
-        let requirements_base = workspace
-            .package_manager_context
-            .workspace_root
-            .as_ref()
-            .map(|path| path.as_path())
-            .unwrap_or_else(|| Path::new("."));
-        let requirement_issues = check_project_requirements(requirements_base, &requirements)?;
-        if !requirement_issues.is_empty() {
-            pb.suspend(|| {
-                print_requirement_issues(&requirement_issues, dry_run);
-            });
-        }
-    } else {
-        pb.set_message(format!(
-            "{}Skipping dependency installation for linked workspace...",
-            prefix
-        ));
-        pb.suspend(|| {
-            println!(
-                "{}",
-                "Detected linked shared UI workspace(s); skipping dependency checks and installation for this workspace."
-                    .dimmed()
-            );
-        });
-    }
-
-    let is_tailwind_v4 = tailwind_v4(&tailwind);
-    if !is_tailwind_v4 {
-        pb.finish_and_clear();
-        print_tailwind_v4_required(&tailwind);
-        return Ok(());
-    }
-
-    pb.set_message(format!("{}Creating configuration...", prefix));
-
-    let mut config = build_config(workspace.config_workspace.kind, &framework_detection)?;
-    config.alias_prefixes = Some(AliasPrefixes {
-        components: Some(config_alias_prefix(&framework_detection)),
-        utils: Some(config_alias_prefix(&framework_detection)),
-    });
-    config.workspace = Some(workspace.config_workspace.clone());
-
-    if dry_run {
-        println!("\n{}", "[dry-run] Would create configuration:".blue());
-        println!("   {}", "nocta.config.json".dimmed());
-    } else {
-        write_config(&config).context("failed to write nocta.config.json")?;
-        created_paths.push(PathBuf::from("nocta.config.json"));
-    }
-
-    if manage_dependencies_here {
-        if dry_run {
-            pb.set_message(format!(
-                "{}[dry-run] Checking required dependencies...",
-                prefix
-            ));
-            println!("\n{}", "[dry-run] Would install dependencies:".blue());
-            for (dep, version) in &required_dependencies {
-                println!("   {}", format!("{}@{}", dep, version).dimmed());
-            }
-        } else {
-            let install_map: HashMap<String, String> = required_dependencies
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
-            pb.set_message("Installing required dependencies...".to_string());
-            if let Err(err) = install_dependencies(&install_map, &workspace.package_manager_context)
-            {
-                pb.suspend(|| {
-                    println!(
-                        "{}",
-                        "Dependencies installation failed, but you can install them manually"
-                            .yellow()
-                    );
-                    println!(
-                        "{}",
-                        format!(
-                            "Run: npm install {}",
-                            required_dependencies
-                                .keys()
-                                .cloned()
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        )
-                        .dimmed()
-                    );
-                    println!("{}", format!("Error: {}", err).red());
-                });
-            }
-        }
-    } else if dry_run {
-        println!(
-            "\n{}",
-            "[dry-run] Would skip dependency installation in this workspace (managed via linked shared UI workspace)."
-                .blue()
-        );
-    }
-
-    let utils_path = PathBuf::from(format!("{}.ts", config.aliases.utils.filesystem_path()));
-    let icons_path = resolve_component_path("components/icons.ts", &config);
-
-    let (utils_created, icons_created) = if manage_dependencies_here {
-        pb.set_message(format!("{}Creating utility functions...", prefix));
-        let utils_created = ensure_registry_asset(
-            client,
-            dry_run,
-            "lib/utils.ts",
-            &utils_path,
-            created_paths,
-            "Utility functions",
-        )?;
-
-        pb.set_message(format!("{}Creating base icons component...", prefix));
-        let icons_created = ensure_registry_asset(
-            client,
-            dry_run,
-            "icons/icons.ts",
-            &icons_path,
-            created_paths,
-            "Icons component",
-        )?;
-        (utils_created, icons_created)
-    } else {
-        pb.set_message(format!(
-            "{}Skipping shared component helpers for linked workspace...",
-            prefix
-        ));
-        pb.suspend(|| {
-            println!(
-                "{}",
-                "Using shared UI workspace for component helpers; skipping local utils/icons creation."
-                    .dimmed()
-            );
-        });
-        (false, false)
-    };
-
-    let mut tokens_added = false;
-    if manage_dependencies_here {
-        pb.set_message(format!("{}Adding semantic color variables...", prefix));
-        if dry_run {
-            if !file_has_tokens(config.tailwind.css.as_str())? {
-                tokens_added = true;
-            }
-        } else if add_design_tokens_to_css(client, config.tailwind.css.as_str())? {
-            tokens_added = true;
-        }
-    } else {
-        pb.set_message(format!(
-            "{}Skipping design tokens for linked workspace...",
-            prefix
-        ));
-        pb.suspend(|| {
-            println!(
-                "{}",
-                "Design tokens expected from linked shared UI workspace; skipping local injection."
-                    .dimmed()
-            );
-        });
-    }
-
-    if dry_run {
-        // Manifest changes are reported in the summary during dry runs.
-    } else {
-        write_workspace_manifest(&workspace.repo_root, &workspace.manifest)
-            .map_err(|err| anyhow!("failed to write {}: {}", WORKSPACE_MANIFEST_FILE, err))?;
-        if !workspace.manifest_existed {
-            created_paths.push(workspace.manifest_path.clone());
-        }
-    }
-
-    pb.finish_with_message(format!(
-        "{}nocta-ui {}",
-        prefix,
-        if dry_run {
-            "would be initialized"
-        } else {
-            "initialized successfully!"
-        }
-    ));
-
-    let framework_label = if framework_detection.framework == FrameworkKind::Unknown {
-        format!(
-            "Custom ({})",
-            workspace_kind_label(workspace.config_workspace.kind)
-        )
-    } else {
-        framework_info(&framework_detection)
-    };
-
-    print_init_summary(
-        dry_run,
-        &config,
-        framework_label,
-        &required_dependencies,
-        !manage_dependencies_here,
-        utils_created.then_some(utils_path.as_path()),
-        icons_created.then_some(icons_path.as_path()),
-        tokens_added,
-        is_tailwind_v4,
-        &workspace,
-    );
-
-    Ok(())
-}
-
-fn create_spinner(message: String) -> ProgressBar {
-    let pb = ProgressBar::new_spinner();
-    pb.set_style(
-        ProgressStyle::with_template("{spinner:.blue} {msg}")
-            .unwrap()
-            .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-    );
-    pb.enable_steady_tick(Duration::from_millis(80));
-    pb.set_message(message);
-    pb
-}
-
-fn print_tailwind_missing_message(check: &TailwindCheck) {
+fn print_tailwind_missing_message(reporter: &ConsoleReporter, check: &TailwindCheck) {
     let _ = check;
-    println!("{}", "Tailwind CSS is required but not found!".red());
-    println!(
+    reporter.error(format!("{}", "Tailwind CSS is required but not found!".red()));
+    reporter.error(format!(
         "{}",
         "Tailwind CSS is not installed or not found in node_modules".red()
-    );
-    println!("{}", "Please install Tailwind CSS first:".yellow());
-    println!("{}", "   npm install -D tailwindcss".dimmed());
-    println!("{}", "   # or".dimmed());
-    println!("{}", "   yarn add -D tailwindcss".dimmed());
-    println!("{}", "   # or".dimmed());
-    println!("{}", "   pnpm add -D tailwindcss".dimmed());
-    println!("{}", "   # or".dimmed());
-    println!("{}", "   bun add -D tailwindcss".dimmed());
-    println!(
+    ));
+    reporter.warn(format!("{}", "Please install Tailwind CSS first:".yellow()));
+    reporter.info(format!("{}", "   npm install -D tailwindcss".dimmed()));
+    reporter.info(format!("{}", "   # or".dimmed()));
+    reporter.info(format!("{}", "   yarn add -D tailwindcss".dimmed()));
+    reporter.info(format!("{}", "   # or".dimmed()));
+    reporter.info(format!("{}", "   pnpm add -D tailwindcss".dimmed()));
+    reporter.info(format!("{}", "   # or".dimmed()));
+    reporter.info(format!("{}", "   bun add -D tailwindcss".dimmed()));
+    reporter.info(format!(
         "{}",
         "Visit https://tailwindcss.com/docs/installation for setup guide".blue()
-    );
+    ));
 }
 
-fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkDetection) {
-    println!("{}", "Unsupported project structure detected!".red());
-    println!("{}", "Could not detect a supported React framework".red());
-    println!("{}", "nocta-ui supports:".yellow());
-    println!("{}", "   • Next.js (App Router or Pages Router)".dimmed());
-    println!("{}", "   • Vite + React".dimmed());
-    println!("{}", "   • React Router 7 (Framework Mode)".dimmed());
-    println!("{}", "   • TanStack Start".dimmed());
-    println!("{}", "Detection details:".blue());
-    println!(
+fn print_framework_unknown_message(
+    reporter: &ConsoleReporter,
+    detection: &nocta_core::framework::FrameworkDetection,
+) {
+    reporter.error(format!(
+        "{}",
+        "Unsupported project structure detected!".red()
+    ));
+    reporter.error(format!(
+        "{}",
+        "Could not detect a supported React framework".red()
+    ));
+    reporter.warn(format!("{}", "nocta-ui supports:".yellow()));
+    reporter.info(format!("{}", "   • Next.js (App Router or Pages Router)".dimmed()));
+    reporter.info(format!("{}", "   • Vite + React".dimmed()));
+    reporter.info(format!("{}", "   • React Router 7 (Framework Mode)".dimmed()));
+    reporter.info(format!("{}", "   • TanStack Start".dimmed()));
+    reporter.info(format!("{}", "Detection details:".blue()));
+    reporter.info(format!(
         "{}",
         format!(
             "   React dependency: {}",
@@ -659,8 +781,8 @@ fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkD
             }
         )
         .dimmed()
-    );
-    println!(
+    ));
+    reporter.info(format!(
         "{}",
         format!(
             "   Framework config: {}",
@@ -671,8 +793,8 @@ fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkD
             }
         )
         .dimmed()
-    );
-    println!(
+    ));
+    reporter.info(format!(
         "{}",
         format!(
             "   Config files found: {}",
@@ -683,71 +805,75 @@ fn print_framework_unknown_message(detection: &nocta_core::framework::FrameworkD
             }
         )
         .dimmed()
-    );
+    ));
     if !detection.details.has_react_dependency {
-        println!("{}", "Install React first:".yellow());
-        println!("{}", "   npm install react react-dom".dimmed());
-        println!(
+        reporter.warn(format!("{}", "Install React first:".yellow()));
+        reporter.info(format!("{}", "   npm install react react-dom".dimmed()));
+        reporter.info(format!(
             "{}",
             "   npm install -D @types/react @types/react-dom".dimmed()
-        );
+        ));
     } else {
-        println!("{}", "Set up a supported framework:".yellow());
-        println!("{}", "   Next.js:".blue());
-        println!("{}", "     npx create-next-app@latest".dimmed());
-        println!("{}", "   Vite + React:".blue());
-        println!(
+        reporter.warn(format!("{}", "Set up a supported framework:".yellow()));
+        reporter.info(format!("{}", "   Next.js:".blue()));
+        reporter.info(format!("{}", "     npx create-next-app@latest".dimmed()));
+        reporter.info(format!("{}", "   Vite + React:".blue()));
+        reporter.info(format!(
             "{}",
             "     npm create vite@latest . -- --template react-ts".dimmed()
-        );
-        println!("{}", "   React Router 7:".blue());
-        println!("{}", "     npx create-react-router@latest".dimmed());
-        println!("{}", "   TanStack Start:".blue());
-        println!("{}", "     npm create tanstack@latest".dimmed());
+        ));
+        reporter.info(format!("{}", "   React Router 7:".blue()));
+        reporter.info(format!("{}", "     npx create-react-router@latest".dimmed()));
+        reporter.info(format!("{}", "   TanStack Start:".blue()));
+        reporter.info(format!("{}", "     npm create tanstack@latest".dimmed()));
     }
 }
 
-fn print_requirement_issues(issues: &[RequirementIssue], dry_run: bool) {
-    println!(
+fn print_requirement_issues(
+    reporter: &ConsoleReporter,
+    issues: &[RequirementIssue],
+    dry_run: bool,
+) {
+    reporter.warn(format!(
         "{}",
         "Project dependencies are missing or out of date.".yellow()
-    );
+    ));
     if dry_run {
-        println!(
+        reporter.info(format!(
             "{}",
             "[dry-run] They would be installed automatically:".blue()
-        );
+        ));
     } else {
-        println!("{}", "Installing required versions...".blue());
+        reporter.info(format!("{}", "Installing required versions...".blue()));
     }
     for issue in issues {
-        println!(
+        reporter.warn(format!(
             "{}",
             format!("   {}: requires {}", issue.name, issue.required).yellow()
-        );
+        ));
         if let Some(installed) = &issue.installed {
-            println!("{}", format!("      installed: {}", installed).dimmed());
+            reporter.info(format!("{}", format!("      installed: {}", installed).dimmed()));
         } else {
-            println!("{}", "      installed: not found".dimmed());
+            reporter.info(format!("{}", "      installed: not found".dimmed()));
         }
         if let Some(declared) = &issue.declared {
-            println!("{}", format!("      declared: {}", declared).dimmed());
+            reporter.info(format!("{}", format!("      declared: {}", declared).dimmed()));
         }
         match issue.reason {
             RequirementIssueReason::Outdated => {
-                println!(
+                reporter.info(format!(
                     "{}",
                     "      will be updated to a compatible version".dimmed()
-                );
+                ));
             }
             RequirementIssueReason::Unknown => {
-                println!(
+                reporter.info(format!(
                     "{}",
                     "      unable to determine installed version, forcing install".dimmed()
-                );
+                ));
             }
             RequirementIssueReason::Missing => {
-                println!("{}", "      will be installed".dimmed());
+                reporter.info(format!("{}", "      will be installed".dimmed()));
             }
         }
     }
@@ -771,49 +897,68 @@ fn tailwind_major(check: &TailwindCheck) -> Option<u64> {
     })
 }
 
-fn print_tailwind_v4_required(check: &TailwindCheck) {
-    println!("{}", "Tailwind CSS v4 is required".red());
-    println!(
+fn print_tailwind_v4_required(reporter: &ConsoleReporter, check: &TailwindCheck) {
+    reporter.error(format!("{}", "Tailwind CSS v4 is required".red()));
+    reporter.error(format!(
         "{}",
         format!(
             "Detected Tailwind version that is not v4: {}",
             check.version.clone().unwrap_or_else(|| "unknown".into())
         )
         .red()
-    );
-    println!("{}", "Please upgrade to Tailwind CSS v4:".yellow());
-    println!("{}", "   npm install -D tailwindcss@latest".dimmed());
-    println!("{}", "   # or".dimmed());
-    println!("{}", "   yarn add -D tailwindcss@latest".dimmed());
-    println!("{}", "   # or".dimmed());
-    println!("{}", "   pnpm add -D tailwindcss@latest".dimmed());
-    println!("{}", "   # or".dimmed());
-    println!("{}", "   bun add -D tailwindcss@latest".dimmed());
+    ));
+    reporter.warn(format!(
+        "{}",
+        "Please upgrade to Tailwind CSS v4:".yellow()
+    ));
+    reporter.info(format!(
+        "{}",
+        "   npm install -D tailwindcss@latest".dimmed()
+    ));
+    reporter.info(format!("{}", "   # or".dimmed()));
+    reporter.info(format!(
+        "{}",
+        "   yarn add -D tailwindcss@latest".dimmed()
+    ));
+    reporter.info(format!("{}", "   # or".dimmed()));
+    reporter.info(format!(
+        "{}",
+        "   pnpm add -D tailwindcss@latest".dimmed()
+    ));
+    reporter.info(format!("{}", "   # or".dimmed()));
+    reporter.info(format!(
+        "{}",
+        "   bun add -D tailwindcss@latest".dimmed()
+    ));
 }
 
 fn ensure_registry_asset(
     client: &RegistryClient,
     dry_run: bool,
+    reporter: &ConsoleReporter,
     asset_path: &str,
     target_path: &Path,
     created_paths: &mut Vec<PathBuf>,
     label: &str,
 ) -> Result<bool> {
     if file_exists(target_path) {
-        println!(
+        reporter.warn(format!(
             "{}",
             format!(
                 "{} already exists - skipping creation",
                 target_path.display()
             )
             .yellow()
-        );
+        ));
         return Ok(false);
     }
 
     if dry_run {
-        println!("{}", format!("[dry-run] Would create {}:", label).blue());
-        println!("   {}", target_path.display().to_string().dimmed());
+        reporter.info(format!("{}", format!("[dry-run] Would create {}:", label).blue()));
+        reporter.info(format!(
+            "   {}",
+            target_path.display().to_string().dimmed()
+        ));
         return Ok(true);
     }
 
@@ -824,15 +969,6 @@ fn ensure_registry_asset(
         .with_context(|| format!("failed to write {}", target_path.display()))?;
     created_paths.push(target_path.to_path_buf());
     Ok(true)
-}
-
-fn file_has_tokens(path: &str) -> Result<bool> {
-    if !file_exists(path) {
-        return Ok(false);
-    }
-    let contents =
-        std::fs::read_to_string(path).with_context(|| format!("failed to read {}", path))?;
-    Ok(contents.contains("NOCTA CSS THEME VARIABLES"))
 }
 
 fn framework_info(detection: &nocta_core::framework::FrameworkDetection) -> String {
@@ -1015,6 +1151,7 @@ fn dependencies_managed_in_workspace(workspace: &WorkspaceResolution) -> bool {
 }
 
 fn print_init_summary(
+    reporter: &ConsoleReporter,
     dry_run: bool,
     config: &Config,
     framework_info: String,
@@ -1026,12 +1163,13 @@ fn print_init_summary(
     tailwind_is_v4: bool,
     workspace: &WorkspaceResolution,
 ) {
-    println!("{}", "\nConfiguration created:".green());
-    println!(
+    reporter.blank();
+    reporter.info(format!("{}", "Configuration created:".green()));
+    reporter.info(format!(
         "{}",
         format!("   nocta.config.json ({})", framework_info).dimmed()
-    );
-    println!(
+    ));
+    reporter.info(format!(
         "{}",
         format!(
             "   Workspace: {} (root: {})",
@@ -1039,8 +1177,8 @@ fn print_init_summary(
             workspace.workspace_root_str
         )
         .dimmed()
-    );
-    println!(
+    ));
+    reporter.info(format!(
         "{}",
         format!(
             "   Mode: {}",
@@ -1051,16 +1189,19 @@ fn print_init_summary(
             }
         )
         .dimmed()
-    );
+    ));
     if let Some(package) = workspace.config_workspace.package_name.as_deref() {
-        println!("{}", format!("   Package: {}", package).dimmed());
+        reporter.info(format!("{}", format!("   Package: {}", package).dimmed()));
     }
 
     if !workspace.config_workspace.linked_workspaces.is_empty() {
-        println!("{}", "\nLinked workspaces:".blue());
+        reporter.info(format!("{}", "\nLinked workspaces:".blue()));
         for link in &workspace.config_workspace.linked_workspaces {
             let label = link.package_name.as_deref().unwrap_or(&link.root);
-            println!("   {}", format!("{} ({})", label, link.config).dimmed());
+            reporter.info(format!(
+                "   {}",
+                format!("{} ({})", label, link.config).dimmed()
+            ));
         }
     }
 
@@ -1078,20 +1219,23 @@ fn print_init_summary(
     } else {
         "created"
     };
-    println!(
+    reporter.info(format!(
         "{}",
         format!("   Manifest: {} ({})", manifest_display, manifest_action).dimmed()
-    );
+    ));
 
     if dependencies_managed_elsewhere {
-        println!(
+        reporter.info(format!(
             "\n{}",
             "Dependencies managed via linked shared UI workspace(s).".blue()
-        );
+        ));
         if !dependencies.is_empty() {
-            println!("{}", "   Ensure the linked workspace includes:".dimmed());
+            reporter.info(format!(
+                "{}",
+                "   Ensure the linked workspace includes:".dimmed()
+            ));
             for (dep, version) in dependencies {
-                println!("   {}", format!("{}@{}", dep, version).dimmed());
+                reporter.info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
             }
         }
     } else {
@@ -1100,22 +1244,25 @@ fn print_init_summary(
         } else {
             "Dependencies installed:".blue()
         };
-        println!("\n{}", dep_heading);
+        reporter.info(format!("\n{}", dep_heading));
         for (dep, version) in dependencies {
-            println!("   {}", format!("{}@{}", dep, version).dimmed());
+            reporter.info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
         }
     }
 
     if let Some(path) = utils_path {
-        println!("\n{}", "Utility functions created:".green());
-        println!("   {}", path.display().to_string().dimmed());
-        println!("   {}", "• cn() function for className merging".dimmed());
+        reporter.info(format!("{}", "\nUtility functions created:".green()));
+        reporter.info(format!("   {}", path.display().to_string().dimmed()));
+        reporter.info(format!(
+            "   {}",
+            "• cn() function for className merging".dimmed()
+        ));
     }
 
     if let Some(path) = icons_path {
-        println!("\n{}", "Icons component created:".green());
-        println!("   {}", path.display().to_string().dimmed());
-        println!("   {}", "• Base Radix Icons mapping".dimmed());
+        reporter.info(format!("{}", "\nIcons component created:".green()));
+        reporter.info(format!("   {}", path.display().to_string().dimmed()));
+        reporter.info(format!("   {}", "• Base Radix Icons mapping".dimmed()));
     }
 
     match (tokens_added, dependencies_managed_elsewhere) {
@@ -1125,33 +1272,33 @@ fn print_init_summary(
             } else {
                 "Color variables added:".green()
             };
-            println!("\n{}", heading);
-            println!("   {}", config.tailwind.css.as_str().dimmed());
-            println!(
+            reporter.info(format!("\n{}", heading));
+            reporter.info(format!("   {}", config.tailwind.css.as_str().dimmed()));
+            reporter.info(format!(
                 "   {}",
                 "• Semantic tokens (background, foreground, primary, border, etc.)".dimmed()
-            );
+            ));
         }
         (false, true) => {
-            println!(
+            reporter.info(format!(
                 "\n{}",
                 "Design tokens managed in linked shared UI workspace.".blue()
-            );
+            ));
         }
         (false, false) => {
-            println!(
+            reporter.info(format!(
                 "\n{}",
                 "Design tokens skipped (already exist or error occurred)".yellow()
-            );
+            ));
         }
     }
 
     if tailwind_is_v4 {
-        println!("\n{}", "Tailwind v4 detected!".blue());
-        println!(
+        reporter.info(format!("\n{}", "Tailwind v4 detected!".blue()));
+        reporter.info(format!(
             "{}",
             "   Make sure your CSS file includes @import \"tailwindcss\";".dimmed()
-        );
+        ));
     }
 
     let final_heading = if dry_run {
@@ -1159,6 +1306,6 @@ fn print_init_summary(
     } else {
         "You can now add components:".blue()
     };
-    println!("\n{}", final_heading);
-    println!("   {}", "npx nocta-ui add button".dimmed());
+    reporter.info(format!("\n{}", final_heading));
+    reporter.info(format!("   {}", "npx nocta-ui add button".dimmed()));
 }

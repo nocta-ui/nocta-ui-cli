@@ -61,6 +61,7 @@ pub struct RegistryClient {
     agent: Agent,
     base_url: String,
     components_manifest: RefCell<Option<HashMap<String, String>>>,
+    registry_cache: RefCell<Option<(String, Registry)>>,
 }
 
 impl RegistryClient {
@@ -69,6 +70,7 @@ impl RegistryClient {
             agent: Agent::new_with_defaults(),
             base_url: base_url.into(),
             components_manifest: RefCell::new(None),
+            registry_cache: RefCell::new(None),
         }
     }
 
@@ -134,7 +136,16 @@ impl RegistryClient {
             REGISTRY_CACHE_PATH,
             default_registry_ttl(),
         )?;
-        serde_json::from_str::<Registry>(&body).map_err(|err| RegistryError::Parse(err.to_string()))
+        if let Some((cached_body, registry)) = self.registry_cache.borrow().as_ref() {
+            if cached_body == &body {
+                return Ok(registry.clone());
+            }
+        }
+
+        let registry =
+            serde_json::from_str::<Registry>(&body).map_err(|err| RegistryError::Parse(err.to_string()))?;
+        self.registry_cache.replace(Some((body, registry.clone())));
+        Ok(registry)
     }
 
     pub fn fetch_summary(&self) -> Result<RegistrySummary, RegistryError> {
