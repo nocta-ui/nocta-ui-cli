@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build:rust": "cargo build --release",
+    "build:link": "bash ./scripts/build-and-link.sh",
     "clean": "cargo clean"
   }
 }
