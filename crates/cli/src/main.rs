@@ -7,10 +7,9 @@ use std::process;
 use clap::{Parser, Subcommand};
 
 use commands::{CommandOutcome, CommandResult, add, init, list};
+use nocta_core::constants::registry::DEFAULT_BASE_URL;
 use nocta_core::RegistryClient;
 use reporter::ConsoleReporter;
-
-const DEFAULT_REGISTRY_URL: &str = "https://nocta-ui.com/registry";
 
 #[derive(Parser, Debug)]
 #[command(
@@ -49,7 +48,7 @@ fn main() {
 fn run(reporter: &ConsoleReporter) -> CommandResult {
     let cli = Cli::parse();
 
-    let registry_url = cli.registry_url.as_deref().unwrap_or(DEFAULT_REGISTRY_URL);
+    let registry_url = cli.registry_url.as_deref().unwrap_or(DEFAULT_BASE_URL);
 
     let client = RegistryClient::new(registry_url);
 

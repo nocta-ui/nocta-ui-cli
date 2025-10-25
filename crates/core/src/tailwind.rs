@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 
+use crate::constants::registry::CSS_BUNDLE_PATH;
 use crate::fs as project_fs;
 use crate::registry::RegistryClient;
 
-const CSS_REGISTRY_PATH: &str = "css/index.css";
 const TOKENS_MARKER: &str = "NOCTA CSS THEME VARIABLES";
 
 #[derive(Debug, Clone, Default)]
@@ -98,8 +98,8 @@ fn insert_snippet(existing: &str, snippet: &str) -> String {
 pub fn add_design_tokens_to_css(registry: &RegistryClient, css_path: &str) -> Result<bool> {
     let full_path = css_full_path(css_path);
     let registry_css = registry
-        .fetch_registry_asset(CSS_REGISTRY_PATH)
-        .with_context(|| format!("failed to fetch registry CSS asset '{}'", CSS_REGISTRY_PATH))?;
+        .fetch_registry_asset(CSS_BUNDLE_PATH)
+        .with_context(|| format!("failed to fetch registry CSS asset '{}'", CSS_BUNDLE_PATH))?;
     let trimmed_registry_css = registry_css.trim_start();
 
     let css_content = if full_path.exists() {

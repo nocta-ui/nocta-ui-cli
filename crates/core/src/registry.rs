@@ -8,27 +8,25 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use thiserror::Error;
 use ureq::{Agent, Error as UreqError};
 
+use crate::constants::registry as registry_constants;
 use crate::cache;
 use crate::types::{CategoryInfo, Component, Registry};
 
-const REGISTRY_CACHE_PATH: &str = "registry/registry.json";
-const COMPONENTS_MANIFEST_PATH: &str = "components.json";
-
 fn default_registry_ttl() -> Duration {
     Duration::from_millis(
-        env::var("NOCTA_CACHE_TTL_MS")
+        env::var(registry_constants::CACHE_TTL_ENV)
             .ok()
             .and_then(|value| value.parse().ok())
-            .unwrap_or(10 * 60 * 1000),
+            .unwrap_or(registry_constants::DEFAULT_CACHE_TTL_MS),
     )
 }
 
 fn default_asset_ttl() -> Duration {
     Duration::from_millis(
-        env::var("NOCTA_ASSET_CACHE_TTL_MS")
+        env::var(registry_constants::ASSET_CACHE_TTL_ENV)
             .ok()
             .and_then(|value| value.parse().ok())
-            .unwrap_or(24 * 60 * 60 * 1000),
+            .unwrap_or(registry_constants::DEFAULT_ASSET_CACHE_TTL_MS),
     )
 }
 
@@ -79,7 +77,7 @@ impl RegistryClient {
     }
 
     fn registry_url(&self) -> String {
-        format!("{}/registry.json", self.base_url())
+        format!("{}/{}", self.base_url(), registry_constants::REGISTRY_MANIFEST)
     }
 
     fn asset_url(&self, asset: &str) -> String {
@@ -133,7 +131,7 @@ impl RegistryClient {
     pub fn fetch_registry(&self) -> Result<Registry, RegistryError> {
         let body = self.fetch_with_cache(
             &self.registry_url(),
-            REGISTRY_CACHE_PATH,
+            registry_constants::CACHE_PATH,
             default_registry_ttl(),
         )?;
         if let Some((cached_body, registry)) = self.registry_cache.borrow().as_ref() {
@@ -247,10 +245,14 @@ impl RegistryClient {
             return Ok(manifest.clone());
         }
 
-        let manifest_text = self.fetch_registry_asset(COMPONENTS_MANIFEST_PATH)?;
+        let manifest_text =
+            self.fetch_registry_asset(registry_constants::COMPONENTS_MANIFEST)?;
         let manifest: HashMap<String, String> =
             serde_json::from_str(&manifest_text).map_err(|err| {
-                RegistryError::AssetParse(COMPONENTS_MANIFEST_PATH.into(), err.to_string())
+                RegistryError::AssetParse(
+                    registry_constants::COMPONENTS_MANIFEST.into(),
+                    err.to_string(),
+                )
             })?;
         self.components_manifest.replace(Some(manifest.clone()));
         Ok(manifest)
