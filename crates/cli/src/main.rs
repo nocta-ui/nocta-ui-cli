@@ -7,8 +7,8 @@ use std::process;
 use clap::{Parser, Subcommand};
 
 use commands::{CommandOutcome, CommandResult, add, init, list};
-use nocta_core::constants::registry::DEFAULT_BASE_URL;
 use nocta_core::RegistryClient;
+use nocta_core::constants::registry::DEFAULT_BASE_URL;
 use reporter::ConsoleReporter;
 
 #[derive(Parser, Debug)]

@@ -35,6 +35,7 @@ pub struct DependencyInstallPlan {
     pub working_directory: PathBuf,
     pub workspace_descriptor: Option<String>,
     pub dependencies: Vec<String>,
+    pub env: Vec<(String, String)>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +60,9 @@ impl DependencyInstallPlan {
         let mut command = Command::new(&self.program);
         command.args(&self.args);
         command.current_dir(&self.working_directory);
+        for (key, value) in &self.env {
+            command.env(key, value);
+        }
         let status = command.status().with_context(|| {
             let target = self
                 .workspace_descriptor
@@ -218,6 +222,8 @@ pub fn plan_dependency_install(
     let workspace_root = context.workspace_root.clone();
     let workspace_package = context.workspace_package.clone();
 
+    let mut env = Vec::new();
+
     let (program, args, working_directory) = match pm_kind {
         PackageManagerKind::Yarn => {
             let mut args = Vec::new();
@@ -256,10 +262,16 @@ pub fn plan_dependency_install(
         PackageManagerKind::Bun => {
             let mut args = vec!["add".into()];
             args.extend(deps_with_versions.clone());
+
             if let Some(root) = workspace_root.as_ref() {
                 args.push("--cwd".into());
                 args.push(root.to_string_lossy().into_owned());
             }
+
+            if let Some(linker) = bun_install_linker(&repo_root) {
+                env.push(("BUN_INSTALL_LINKER".into(), linker));
+            }
+
             ("bun".into(), args, repo_root.clone())
         }
         PackageManagerKind::Npm => {
@@ -284,7 +296,61 @@ pub fn plan_dependency_install(
         working_directory,
         workspace_descriptor,
         dependencies: deps_with_versions,
+        env,
     }))
+}
+
+fn bun_install_linker(repo_root: &Path) -> Option<String> {
+    const CANDIDATES: [&str; 3] = ["bunfig.toml", "bunfig.json", "bunfig"];
+
+    for candidate in CANDIDATES {
+        let path = repo_root.join(candidate);
+        if let Ok(contents) = fs::read_to_string(&path) {
+            if let Some(linker) = parse_bun_linker(&contents) {
+                return Some(linker);
+            }
+        }
+    }
+
+    None
+}
+
+fn parse_bun_linker(contents: &str) -> Option<String> {
+    let mut in_install_section = false;
+
+    for line in contents.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if trimmed.starts_with('[') {
+            in_install_section = trimmed == "[install]";
+            continue;
+        }
+
+        if !in_install_section {
+            continue;
+        }
+
+        if let Some((key, value)) = trimmed.split_once('=') {
+            if key.trim() != "linker" {
+                continue;
+            }
+
+            let value = value.split('#').next().unwrap_or("").trim();
+            let value = value.trim_matches(|c| matches!(c, '"' | '\''));
+
+            if value.is_empty() {
+                continue;
+            }
+
+            return Some(value.to_string());
+        }
+    }
+
+    None
 }
 
 pub fn install_dependencies(

@@ -8,8 +8,8 @@ use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use thiserror::Error;
 use ureq::{Agent, Error as UreqError};
 
-use crate::constants::registry as registry_constants;
 use crate::cache;
+use crate::constants::registry as registry_constants;
 use crate::types::{CategoryInfo, Component, Registry};
 
 fn default_registry_ttl() -> Duration {
@@ -77,7 +77,11 @@ impl RegistryClient {
     }
 
     fn registry_url(&self) -> String {
-        format!("{}/{}", self.base_url(), registry_constants::REGISTRY_MANIFEST)
+        format!(
+            "{}/{}",
+            self.base_url(),
+            registry_constants::REGISTRY_MANIFEST
+        )
     }
 
     fn asset_url(&self, asset: &str) -> String {
@@ -245,8 +249,7 @@ impl RegistryClient {
             return Ok(manifest.clone());
         }
 
-        let manifest_text =
-            self.fetch_registry_asset(registry_constants::COMPONENTS_MANIFEST)?;
+        let manifest_text = self.fetch_registry_asset(registry_constants::COMPONENTS_MANIFEST)?;
         let manifest: HashMap<String, String> =
             serde_json::from_str(&manifest_text).map_err(|err| {
                 RegistryError::AssetParse(
