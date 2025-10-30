@@ -8,5 +8,7 @@ pub mod registry;
 pub mod rollback;
 pub mod tailwind;
 pub mod types;
+pub mod workspace;
 
 pub use registry::{RegistryClient, RegistryError};
+pub mod constants;

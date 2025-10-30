@@ -1,12 +1,15 @@
 mod commands;
+mod reporter;
+mod util;
 
-use anyhow::Result;
+use std::process;
+
 use clap::{Parser, Subcommand};
 
-use commands::{add, init, list};
+use commands::{CommandOutcome, CommandResult, add, init, list};
 use nocta_core::RegistryClient;
-
-const DEFAULT_REGISTRY_URL: &str = "https://nocta-ui.com/registry";
+use nocta_core::constants::registry::DEFAULT_BASE_URL;
+use reporter::ConsoleReporter;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -31,16 +34,27 @@ enum Commands {
     List(list::ListArgs),
 }
 
-fn main() -> Result<()> {
+fn main() {
+    let reporter = ConsoleReporter::new();
+    match run(&reporter) {
+        Ok(CommandOutcome::Completed) | Ok(CommandOutcome::NoOp) => {}
+        Err(err) => {
+            reporter.error(format!("Error: {:#}", err));
+            process::exit(1);
+        }
+    }
+}
+
+fn run(reporter: &ConsoleReporter) -> CommandResult {
     let cli = Cli::parse();
 
-    let registry_url = cli.registry_url.as_deref().unwrap_or(DEFAULT_REGISTRY_URL);
+    let registry_url = cli.registry_url.as_deref().unwrap_or(DEFAULT_BASE_URL);
 
     let client = RegistryClient::new(registry_url);
 
     match cli.command {
-        Commands::Init(args) => init::run(&client, args),
-        Commands::Add(args) => add::run(&client, args),
-        Commands::List(args) => list::run(&client, args),
+        Commands::Init(args) => init::run(&client, reporter, args),
+        Commands::Add(args) => add::run(&client, reporter, args),
+        Commands::List(args) => list::run(&client, reporter, args),
     }
 }

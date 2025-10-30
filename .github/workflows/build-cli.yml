@@ -3,7 +3,7 @@ name: Build and Commit CLI Binaries
 on:
   push:
     branches:
-      - main
+      - monorepo-support
   pull_request:
   workflow_dispatch:
 
@@ -114,4 +114,4 @@ jobs:
             exit 0
           fi
           git commit -m "chore: update built binaries [skip ci]"
-          git push origin master
+          git push origin monorepo-support

@@ -4,10 +4,32 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use crate::workspace::{WORKSPACE_MANIFEST_FILE, find_repo_root};
+
 const DEFAULT_CACHE_DIR: &str = ".nocta-cache";
 
 fn current_dir() -> PathBuf {
     env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+fn detect_project_root(start: &Path) -> PathBuf {
+    let mut current = start.to_path_buf();
+
+    loop {
+        if current.join(DEFAULT_CACHE_DIR).exists() {
+            return current;
+        }
+
+        if current.join(WORKSPACE_MANIFEST_FILE).exists() {
+            return current;
+        }
+
+        if !current.pop() {
+            break;
+        }
+    }
+
+    find_repo_root(start).unwrap_or_else(|| start.to_path_buf())
 }
 
 fn cache_base_dir() -> PathBuf {
@@ -15,7 +37,7 @@ fn cache_base_dir() -> PathBuf {
         .ok()
         .filter(|value| !value.trim().is_empty())
         .map(PathBuf::from)
-        .unwrap_or_else(|| current_dir().join(DEFAULT_CACHE_DIR))
+        .unwrap_or_else(|| detect_project_root(&current_dir()).join(DEFAULT_CACHE_DIR))
 }
 
 fn resolve_cache_path(rel_path: &str) -> PathBuf {

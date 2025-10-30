@@ -11,7 +11,7 @@ license = "MIT"
 authors = ["Marek Jóźwiak <hexthecoder@gmail.com>"]
 repository = "https://github.com/nocta-ui/nocta-ui-cli"
 description = "Next-generation Nocta UI CLI tooling"
-version = "0.1.4"
+version = "0.2.0"
 
 [workspace.dependencies]
 anyhow = "1.0.100"
@@ -30,6 +30,7 @@ indicatif = "0.17.8"
 once_cell = "1.19.0"
 semver = "1.0.23"
 regex = "1.11.1"
+pathdiff = "0.2.1"
 
 [profile.release]
 opt-level = "z"

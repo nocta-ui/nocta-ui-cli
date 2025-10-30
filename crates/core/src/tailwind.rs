@@ -1,13 +1,14 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use anyhow::{Context, Result};
 
+use crate::constants::registry::CSS_BUNDLE_PATH;
 use crate::fs as project_fs;
 use crate::registry::RegistryClient;
 
-const CSS_REGISTRY_PATH: &str = "css/index.css";
 const TOKENS_MARKER: &str = "NOCTA CSS THEME VARIABLES";
 
 #[derive(Debug, Clone, Default)]
@@ -95,14 +96,11 @@ fn insert_snippet(existing: &str, snippet: &str) -> String {
     result
 }
 
-pub fn add_design_tokens_to_css(
-    registry: &RegistryClient,
-    css_path: &str,
-) -> Result<bool> {
+pub fn add_design_tokens_to_css(registry: &RegistryClient, css_path: &str) -> Result<bool> {
     let full_path = css_full_path(css_path);
     let registry_css = registry
-        .fetch_registry_asset(CSS_REGISTRY_PATH)
-        .with_context(|| format!("failed to fetch registry CSS asset '{}'", CSS_REGISTRY_PATH))?;
+        .fetch_registry_asset(CSS_BUNDLE_PATH)
+        .with_context(|| format!("failed to fetch registry CSS asset '{}'", CSS_BUNDLE_PATH))?;
     let trimmed_registry_css = registry_css.trim_start();
 
     let css_content = if full_path.exists() {
@@ -174,10 +172,54 @@ fn read_declared_tailwind_version() -> Option<String> {
 }
 
 fn read_installed_tailwind_version() -> Option<String> {
-    let path = css_full_path("node_modules/tailwindcss/package.json");
-    let data = fs::read_to_string(path).ok()?;
-    let json: serde_json::Value = serde_json::from_str(&data).ok()?;
-    json.get("version")
-        .and_then(|value| value.as_str())
-        .map(|value| value.to_string())
+    let mut dir = current_dir();
+
+    loop {
+        let path = dir.join("node_modules/tailwindcss/package.json");
+        if let Ok(data) = fs::read_to_string(&path) {
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&data) {
+                if let Some(version) = json
+                    .get("version")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string())
+                {
+                    return Some(version);
+                }
+            }
+        }
+
+        if !dir.pop() {
+            break;
+        }
+    }
+
+    read_tailwind_version_via_command(
+        "yarn",
+        &["node", "-p", "require('tailwindcss/package.json').version"],
+    )
+    .or_else(|| {
+        read_tailwind_version_via_command(
+            "node",
+            &["-p", "require('tailwindcss/package.json').version"],
+        )
+    })
+}
+
+fn read_tailwind_version_via_command(command: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new(command)
+        .current_dir(current_dir())
+        .args(args)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(|line| line.to_string())
 }
