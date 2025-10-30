@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use anyhow::{Context, Result};
 
@@ -192,5 +193,33 @@ fn read_installed_tailwind_version() -> Option<String> {
         }
     }
 
-    None
+    read_tailwind_version_via_command(
+        "yarn",
+        &["node", "-p", "require('tailwindcss/package.json').version"],
+    )
+    .or_else(|| {
+        read_tailwind_version_via_command(
+            "node",
+            &["-p", "require('tailwindcss/package.json').version"],
+        )
+    })
+}
+
+fn read_tailwind_version_via_command(command: &str, args: &[&str]) -> Option<String> {
+    let output = Command::new(command)
+        .current_dir(current_dir())
+        .args(args)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(|line| line.to_string())
 }
