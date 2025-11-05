@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod config;
+pub mod constants;
 pub mod deps;
 pub mod framework;
 pub mod fs;
@@ -11,4 +12,3 @@ pub mod types;
 pub mod workspace;
 
 pub use registry::{RegistryClient, RegistryError};
-pub mod constants;

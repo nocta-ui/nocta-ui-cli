@@ -105,6 +105,98 @@
 			"sizes": ["xs", "sm", "md", "lg", "xl", "2xl"],
 			"variants": ["circle", "square"]
 		},
+		"area-chart": {
+			"name": "Area Chart",
+			"description": "Interactive area chart with multi-series support, tooltips, legend, and data table helpers",
+			"category": "data-display",
+			"files": [
+				{
+					"name": "area-chart.tsx",
+					"path": "app/components/ui/area-chart/area-chart.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^19.1.1",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"d3-shape": "^3.2.0"
+			},
+			"exports": [
+				"AreaChart",
+				"AreaChartHeader",
+				"AreaChartTitle",
+				"AreaChartDescription",
+				"AreaChartActions",
+				"AreaChartGraph",
+				"AreaChartLegend",
+				"AreaChartDataTable",
+				"AreaChartDataTableContent"
+			],
+			"props": {
+				"AreaChart": [
+					"data",
+					"xKey",
+					"yKey",
+					"nameKey",
+					"color",
+					"seriesLabel",
+					"sortPoints",
+					"xFormatter",
+					"yFormatter",
+					"valueFormatter",
+					"additionalSeries",
+					"children",
+					"className"
+				],
+				"AreaChartHeader": [
+					"children",
+					"className",
+					"contentClassName",
+					"titleClassName",
+					"descriptionClassName",
+					"actionsClassName"
+				],
+				"AreaChartTitle": ["children", "className", "as"],
+				"AreaChartDescription": ["children", "className"],
+				"AreaChartActions": ["children", "className"],
+				"AreaChartGraph": [
+					"height",
+					"curve",
+					"showTooltip",
+					"tooltipRender",
+					"showDots",
+					"loading",
+					"loadingState",
+					"emptyState",
+					"error",
+					"ariaLabel",
+					"showGrid",
+					"showXAxisValues",
+					"showYAxisValues",
+					"xTickCount",
+					"yTickCount",
+					"children",
+					"className",
+					"style"
+				],
+				"AreaChartLegend": ["className"],
+				"AreaChartDataTable": ["children", "className"],
+				"AreaChartDataTableContent": [
+					"className",
+					"rowClassName",
+					"labelClassName",
+					"valueClassName",
+					"deltaClassName",
+					"showDelta",
+					"deltaFormatter",
+					"valueFormatter",
+					"showTotalRow",
+					"averageLabel",
+					"averageFormatter"
+				]
+			}
+		},
 		"badge": {
 			"name": "Badge",
 			"description": "Badge component for displaying status, counts, or labels",
@@ -128,6 +220,91 @@
 			},
 			"variants": ["default", "secondary", "destructive", "success", "warning"],
 			"sizes": ["sm", "md", "lg"]
+		},
+		"pie-chart": {
+			"name": "Pie Chart",
+			"description": "Interactive pie chart with tooltips, legend, and data table helpers",
+			"category": "data-display",
+			"files": [
+				{
+					"name": "pie-chart.tsx",
+					"path": "app/components/ui/pie-chart/pie-chart.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^19.1.1",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"d3-shape": "^3.2.0"
+			},
+			"exports": [
+				"PieChart",
+				"PieChartHeader",
+				"PieChartTitle",
+				"PieChartDescription",
+				"PieChartActions",
+				"PieChartGraph",
+				"PieChartLegend",
+				"PieChartDataTable",
+				"PieChartDataTableContent"
+			],
+			"props": {
+				"PieChart": [
+					"data",
+					"valueKey",
+					"nameKey",
+					"colors",
+					"sortSlices",
+					"valueFormatter",
+					"labelFormatter",
+					"children",
+					"className"
+				],
+				"PieChartHeader": [
+					"children",
+					"className",
+					"contentClassName",
+					"titleClassName",
+					"descriptionClassName",
+					"actionsClassName"
+				],
+				"PieChartTitle": ["children", "className", "as"],
+				"PieChartDescription": ["children", "className"],
+				"PieChartActions": ["children", "className"],
+				"PieChartGraph": [
+					"height",
+					"innerRadius",
+					"outerRadius",
+					"padAngle",
+					"cornerRadius",
+					"startAngle",
+					"endAngle",
+					"showTooltip",
+					"tooltipRender",
+					"loading",
+					"loadingState",
+					"emptyState",
+					"error",
+					"ariaLabel",
+					"children",
+					"className"
+				],
+				"PieChartLegend": ["className"],
+				"PieChartDataTable": ["children", "className"],
+				"PieChartDataTableContent": [
+					"className",
+					"rowClassName",
+					"labelClassName",
+					"valueClassName",
+					"percentageClassName",
+					"showPercentages",
+					"showTotalRow",
+					"totalLabel",
+					"totalFormatter",
+					"percentageFormatter"
+				]
+			}
 		},
 		"table": {
 			"name": "Table",
@@ -934,7 +1111,7 @@
 			],
 			"dependencies": {
 				"react": "^19.1.1",
-				"react-dom": "^18.0.0",
+				"react-dom": "^19.1.1",
 				"tailwind-merge": "^3.3.1",
 				"clsx": "^2.1.1",
 				"class-variance-authority": "^0.7.1",
@@ -942,9 +1119,9 @@
 			},
 			"exports": ["Tooltip", "TooltipTrigger", "TooltipContent"],
 			"props": {
-				"Tooltip": ["children", "delayDuration"],
-				"TooltipTrigger": ["children", "className"],
-				"TooltipContent": ["children", "className", "variant"]
+				"Tooltip": ["children", "delayDuration", "placement", "gutter"],
+				"TooltipTrigger": ["children", "className", "render", "autoFocus"],
+				"TooltipContent": ["children", "className", "variant", "gutter", "autoFocus"]
 			}
 		},
 		"dropdown-menu": {
@@ -979,7 +1156,7 @@
 			"props": {
 				"DropdownMenu": ["children", "className"],
 				"DropdownMenuTrigger": ["children", "disabled", "className"],
-				"DropdownMenuContent": ["children", "className", "size"],
+				"DropdownMenuContent": ["children", "className", "sameWidth", "size"],
 				"DropdownMenuItem": [
 					"children",
 					"disabled",
@@ -1032,7 +1209,7 @@
 			"props": {
 				"ContextMenu": ["children", "className"],
 				"ContextMenuTrigger": ["children", "disabled", "className"],
-				"ContextMenuContent": ["children", "className", "size"],
+				"ContextMenuContent": ["children", "className", "sameWidth", "size"],
 				"ContextMenuItem": [
 					"children",
 					"disabled",
@@ -1052,6 +1229,62 @@
 				],
 				"ContextMenuSubContent": ["children", "className", "size"]
 			}
+		},
+		"menubar": {
+			"name": "Menubar",
+			"description": "An application menubar with multi-level menus, groups, and keyboard navigation",
+			"category": "navigation",
+			"files": [
+				{
+					"name": "menubar.tsx",
+					"path": "app/components/ui/menubar/menubar.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^19.1.1",
+				"react-dom": "^19.1.1",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.19"
+			},
+			"exports": [
+				"Menubar",
+				"MenubarMenu",
+				"MenubarTrigger",
+				"MenubarContent",
+				"MenubarItem",
+				"MenubarSeparator",
+				"MenubarSub",
+				"MenubarSubTrigger",
+				"MenubarSubContent"
+			],
+			"props": {
+				"Menubar": ["children", "className", "size"],
+				"MenubarMenu": ["children"],
+				"MenubarTrigger": ["children", "className", "disabled", "size"],
+				"MenubarContent": ["children", "className", "size"],
+				"MenubarItem": [
+					"children",
+					"disabled",
+					"inset",
+					"destructive",
+					"className",
+					"onClick"
+				],
+				"MenubarSeparator": ["className"],
+				"MenubarSub": ["children"],
+				"MenubarSubTrigger": [
+					"children",
+					"disabled",
+					"inset",
+					"destructive",
+					"className"
+				],
+				"MenubarSubContent": ["children", "className", "size"]
+			},
+			"sizes": ["md"]
 		},
 		"sheet": {
 			"name": "Sheet",
@@ -1265,7 +1498,7 @@
 				"clsx": "^2.1.1",
 				"class-variance-authority": "^0.7.1"
 			},
-			"internalDependencies": ["spinner"],
+			"internalDependencies": ["spinner", "button"],
 			"exports": [
 				"FileUpload",
 				"FileUploadZone",
@@ -1304,6 +1537,66 @@
 			},
 			"variants": ["default"],
 			"sizes": ["sm", "md", "lg"]
+		},
+		"navigation-menu": {
+			"name": "Navigation Menu",
+			"description": "Hover-driven navigation bar with floating panels for grouped links and quick actions",
+			"category": "navigation",
+			"files": [
+				{
+					"name": "navigation-menu.tsx",
+					"path": "app/components/ui/navigation-menu/navigation-menu.tsx",
+					"type": "component"
+				}
+			],
+			"dependencies": {
+				"react": "^19.1.1",
+				"react-dom": "^19.1.1",
+				"tailwind-merge": "^3.3.1",
+				"clsx": "^2.1.1",
+				"class-variance-authority": "^0.7.1",
+				"@ariakit/react": "^0.4.19"
+			},
+			"exports": [
+				"NavigationMenu",
+				"NavigationMenuItem",
+				"NavigationMenuLink",
+				"NavigationMenuGroup"
+			],
+			"props": {
+				"NavigationMenu": [
+					"children",
+					"className",
+					"size",
+					"panelClassName",
+					"panelWrapperClassName",
+					"arrowClassName"
+				],
+				"NavigationMenuItem": [
+					"label",
+					"href",
+					"shift",
+					"placement",
+					"children",
+					"className",
+					"size",
+					"render"
+				],
+				"NavigationMenuLink": [
+					"label",
+					"description",
+					"href",
+					"className",
+					"render"
+				],
+				"NavigationMenuGroup": [
+					"label",
+					"children",
+					"className",
+					"labelClassName"
+				]
+			},
+			"sizes": ["md"]
 		},
 		"chat": {
 			"name": "Chat",
@@ -1397,7 +1690,7 @@
 		"data-display": {
 			"name": "Data Display",
 			"description": "Components for displaying data and content",
-			"components": ["avatar", "badge", "table"]
+			"components": ["avatar", "badge", "table", "area-chart", "pie-chart"]
 		},
 		"feedback": {
 			"name": "Feedback",
@@ -1425,7 +1718,7 @@
 		"navigation": {
 			"name": "Navigation",
 			"description": "Components for navigation and routing",
-			"components": ["breadcrumb", "tabs"]
+			"components": ["breadcrumb", "navigation-menu", "tabs"]
 		},
 		"communication": {
 			"name": "Communication",

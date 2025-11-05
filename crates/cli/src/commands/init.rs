@@ -18,7 +18,8 @@ use crate::util::{
 };
 use nocta_core::config::{read_config, write_config};
 use nocta_core::deps::{
-    RequirementIssue, RequirementIssueReason, check_project_requirements, plan_dependency_install,
+    DependencyScope, RequirementIssue, RequirementIssueReason, check_project_requirements,
+    plan_dependency_install,
 };
 use nocta_core::framework::{AppStructure, FrameworkKind, detect_framework};
 use nocta_core::fs::{file_exists, write_file};
@@ -41,6 +42,9 @@ pub struct InitArgs {
     #[arg(long = "dry-run")]
     pub dry_run: bool,
 }
+
+const SHARED_UI_PEER_DEPENDENCIES: &[&str] = &["react", "react-dom"];
+const SHARED_UI_DEV_DEPENDENCIES: &[&str] = &["@types/react"];
 
 struct InitCommand<'a> {
     client: &'a RegistryClient,
@@ -255,60 +259,127 @@ impl<'a> InitCommand<'a> {
         workspace: &WorkspaceResolution,
     ) -> Result<()> {
         if manage_here {
-            let install_map: HashMap<String, String> = required
-                .iter()
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect();
+            let is_shared_ui = workspace.config_workspace.kind == WorkspaceKind::Ui;
+            let mut install_groups: Vec<(DependencyScope, BTreeMap<String, String>)> = Vec::new();
+
+            if is_shared_ui {
+                let mut peer = BTreeMap::new();
+                let mut dev = BTreeMap::new();
+                let mut regular = BTreeMap::new();
+
+                for (dep, version) in required {
+                    let name = dep.as_str();
+                    if SHARED_UI_PEER_DEPENDENCIES.contains(&name) {
+                        peer.insert(dep.clone(), version.clone());
+                    } else if SHARED_UI_DEV_DEPENDENCIES.contains(&name) {
+                        dev.insert(dep.clone(), version.clone());
+                    } else {
+                        regular.insert(dep.clone(), version.clone());
+                    }
+                }
+
+                if !peer.is_empty() {
+                    install_groups.push((DependencyScope::Peer, peer));
+                }
+                if !dev.is_empty() {
+                    install_groups.push((DependencyScope::Dev, dev));
+                }
+                if !regular.is_empty() {
+                    install_groups.push((DependencyScope::Regular, regular));
+                }
+            } else if !required.is_empty() {
+                let regular: BTreeMap<String, String> = required
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                install_groups.push((DependencyScope::Regular, regular));
+            }
+
+            if install_groups.is_empty() {
+                return Ok(());
+            }
+
             if self.dry_run {
                 self.spinner.set_message(format!(
                     "{}[dry-run] Checking required dependencies...",
                     self.prefix
                 ));
                 self.reporter.blank();
-                self.reporter.info(format!(
-                    "{}",
-                    "[dry-run] Would install dependencies:".blue()
-                ));
-                for (dep, version) in required {
-                    self.reporter
-                        .info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
+            }
+
+            for (scope, deps) in install_groups {
+                if deps.is_empty() {
+                    continue;
                 }
 
-                if let Some(plan) =
-                    plan_dependency_install(&install_map, &workspace.package_manager_context)?
-                {
+                let scope_label = match scope {
+                    DependencyScope::Peer => "peer dependencies",
+                    DependencyScope::Dev => "dev dependencies",
+                    DependencyScope::Regular => "dependencies",
+                };
+
+                let install_map: HashMap<String, String> =
+                    deps.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+
+                if self.dry_run {
                     self.reporter.info(format!(
                         "{}",
-                        format!("   Command: {}", plan.command_line().join(" ")).dimmed()
+                        format!("[dry-run] Would install {}:", scope_label).blue()
                     ));
-                }
-            } else if let Some(plan) =
-                plan_dependency_install(&install_map, &workspace.package_manager_context)?
-            {
-                let target = plan
-                    .target_label()
-                    .map(|label| format!(" {}", label))
-                    .unwrap_or_default();
+                    for (dep, version) in deps {
+                        self.reporter
+                            .info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
+                    }
 
-                self.spinner.set_message(format!(
-                    "{}Installing dependencies with {}{}...",
-                    self.prefix,
-                    plan.package_manager.as_str(),
-                    target
-                ));
-
-                if let Err(err) = plan.execute() {
-                    let command = plan.command_line().join(" ");
-                    let reporter = self.reporter;
-                    self.spinner.suspend(|| {
-                        reporter.warn(format!(
+                    if let Some(plan) = plan_dependency_install(
+                        &install_map,
+                        &workspace.package_manager_context,
+                        scope,
+                    )? {
+                        self.reporter.info(format!(
                             "{}",
-                            "Dependencies installation failed, but you can install them manually"
-                                .yellow()
+                            format!("   Command: {}", plan.command_line().join(" ")).dimmed()
                         ));
-                        reporter.info(format!("{}", format!("Run: {}", command).dimmed()));
-                        reporter.error(format!("{}", format!("Error: {}", err).red()));
-                    });
+                    }
+                    continue;
+                }
+
+                if let Some(plan) = plan_dependency_install(
+                    &install_map,
+                    &workspace.package_manager_context,
+                    scope,
+                )? {
+                    let target = plan
+                        .target_label()
+                        .map(|label| format!(" {}", label))
+                        .unwrap_or_default();
+
+                    self.spinner.set_message(format!(
+                        "{}Installing {} with {}{}...",
+                        self.prefix,
+                        scope_label,
+                        plan.package_manager.as_str(),
+                        target
+                    ));
+
+                    if let Err(err) = plan.execute() {
+                        let command = plan.command_line().join(" ");
+                        let reporter = self.reporter;
+                        let scope_failure = match scope {
+                            DependencyScope::Peer => "Peer dependencies installation failed",
+                            DependencyScope::Dev => "Dev dependencies installation failed",
+                            DependencyScope::Regular => "Dependencies installation failed",
+                        };
+                        self.spinner.suspend(|| {
+                            reporter.warn(format!(
+                                "{}",
+                                format!("{}; you can install them manually", scope_failure)
+                                    .yellow()
+                            ));
+                            reporter.info(format!("{}", format!("Run: {}", command).dimmed()));
+                            reporter.error(format!("{}", format!("Error: {}", err).red()));
+                        });
+                    }
                 }
             }
         } else if self.dry_run {

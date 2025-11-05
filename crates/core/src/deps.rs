@@ -27,6 +27,13 @@ pub struct RequirementIssue {
     pub reason: RequirementIssueReason,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DependencyScope {
+    Regular,
+    Dev,
+    Peer,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DependencyInstallPlan {
     pub package_manager: PackageManagerKind,
@@ -36,6 +43,7 @@ pub struct DependencyInstallPlan {
     pub workspace_descriptor: Option<String>,
     pub dependencies: Vec<String>,
     pub env: Vec<(String, String)>,
+    pub scope: DependencyScope,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -191,6 +199,7 @@ pub fn get_installed_dependencies() -> Result<HashMap<String, String>> {
 pub fn plan_dependency_install(
     dependencies: &HashMap<String, String>,
     context: &PackageManagerContext,
+    scope: DependencyScope,
 ) -> Result<Option<DependencyInstallPlan>> {
     if dependencies.is_empty() {
         return Ok(None);
@@ -231,10 +240,20 @@ pub fn plan_dependency_install(
                 args.push("workspace".into());
                 args.push(package.to_string());
                 args.push("add".into());
+                match scope {
+                    DependencyScope::Dev => args.push("--dev".into()),
+                    DependencyScope::Peer => args.push("--peer".into()),
+                    DependencyScope::Regular => {}
+                }
                 args.extend(deps_with_versions.clone());
                 ("yarn".into(), args, repo_root.clone())
             } else {
                 args.push("add".into());
+                match scope {
+                    DependencyScope::Dev => args.push("--dev".into()),
+                    DependencyScope::Peer => args.push("--peer".into()),
+                    DependencyScope::Regular => {}
+                }
                 args.extend(deps_with_versions.clone());
                 let working_dir = workspace_root.clone().unwrap_or_else(|| repo_root.clone());
                 ("yarn".into(), args, working_dir)
@@ -246,14 +265,29 @@ pub fn plan_dependency_install(
                 (Some(package), _) => {
                     args.push("--filter".into());
                     args.push(package.to_string());
+                    match scope {
+                        DependencyScope::Dev => args.push("--save-dev".into()),
+                        DependencyScope::Peer => args.push("--save-peer".into()),
+                        DependencyScope::Regular => {}
+                    }
                     args.extend(deps_with_versions.clone());
                     ("pnpm".into(), args, repo_root.clone())
                 }
                 (None, Some(root)) => {
+                    match scope {
+                        DependencyScope::Dev => args.push("--save-dev".into()),
+                        DependencyScope::Peer => args.push("--save-peer".into()),
+                        DependencyScope::Regular => {}
+                    }
                     args.extend(deps_with_versions.clone());
                     ("pnpm".into(), args, root.clone())
                 }
                 _ => {
+                    match scope {
+                        DependencyScope::Dev => args.push("--save-dev".into()),
+                        DependencyScope::Peer => args.push("--save-peer".into()),
+                        DependencyScope::Regular => {}
+                    }
                     args.extend(deps_with_versions.clone());
                     ("pnpm".into(), args, repo_root.clone())
                 }
@@ -261,6 +295,11 @@ pub fn plan_dependency_install(
         }
         PackageManagerKind::Bun => {
             let mut args = vec!["add".into()];
+            match scope {
+                DependencyScope::Dev => args.push("--dev".into()),
+                DependencyScope::Peer => args.push("--peer".into()),
+                DependencyScope::Regular => {}
+            }
             args.extend(deps_with_versions.clone());
 
             if let Some(root) = workspace_root.as_ref() {
@@ -276,6 +315,11 @@ pub fn plan_dependency_install(
         }
         PackageManagerKind::Npm => {
             let mut args = vec!["install".into()];
+            match scope {
+                DependencyScope::Dev => args.push("--save-dev".into()),
+                DependencyScope::Peer => args.push("--save-peer".into()),
+                DependencyScope::Regular => {}
+            }
             args.extend(deps_with_versions.clone());
             if let Some(package) = workspace_package.as_deref() {
                 args.push("--workspace".into());
@@ -297,6 +341,7 @@ pub fn plan_dependency_install(
         workspace_descriptor,
         dependencies: deps_with_versions,
         env,
+        scope,
     }))
 }
 
@@ -356,8 +401,9 @@ fn parse_bun_linker(contents: &str) -> Option<String> {
 pub fn install_dependencies(
     dependencies: &HashMap<String, String>,
     context: &PackageManagerContext,
+    scope: DependencyScope,
 ) -> Result<DependencyInstallOutcome> {
-    let plan = match plan_dependency_install(dependencies, context)? {
+    let plan = match plan_dependency_install(dependencies, context, scope)? {
         Some(plan) => plan,
         None => return Ok(DependencyInstallOutcome::Skipped),
     };

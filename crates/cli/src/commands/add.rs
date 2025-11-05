@@ -17,8 +17,8 @@ use crate::reporter::ConsoleReporter;
 use crate::util::{canonicalize_path, create_spinner, normalize_relative_path};
 use nocta_core::config::{read_config, read_config_from};
 use nocta_core::deps::{
-    RequirementIssueReason, check_project_requirements, get_installed_dependencies_at,
-    plan_dependency_install,
+    DependencyScope, RequirementIssueReason, check_project_requirements,
+    get_installed_dependencies_at, plan_dependency_install,
 };
 use nocta_core::framework::{FrameworkDetection, FrameworkKind, detect_framework};
 use nocta_core::fs::{file_exists, read_file, write_file};
@@ -1301,17 +1301,21 @@ fn handle_workspace_dependencies(
                 .collect();
 
             if dry_run {
-                if let Some(plan) =
-                    plan_dependency_install(&install_map, &handle.package_manager_context)?
-                {
+                if let Some(plan) = plan_dependency_install(
+                    &install_map,
+                    &handle.package_manager_context,
+                    DependencyScope::Regular,
+                )? {
                     reporter.info(format!(
                         "{}",
                         format!("   Command: {}", plan.command_line().join(" ")).dimmed()
                     ));
                 }
-            } else if let Some(plan) =
-                plan_dependency_install(&install_map, &handle.package_manager_context)?
-            {
+            } else if let Some(plan) = plan_dependency_install(
+                &install_map,
+                &handle.package_manager_context,
+                DependencyScope::Regular,
+            )? {
                 plan.execute()?;
                 reporter.info(format!(
                     "{}",
