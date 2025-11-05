@@ -461,6 +461,18 @@ struct ComponentFileWithContent {
     file_type: String,
 }
 
+#[derive(Clone, Default)]
+struct WorkspaceDependencySet {
+    regular: BTreeMap<String, String>,
+    dev: BTreeMap<String, String>,
+}
+
+impl WorkspaceDependencySet {
+    fn is_empty(&self) -> bool {
+        self.regular.is_empty() && self.dev.is_empty()
+    }
+}
+
 #[derive(Debug)]
 struct ExportUpdate {
     workspace_label: String,
@@ -728,10 +740,10 @@ fn gather_component_files(
     context: &WorkspaceContext,
 ) -> Result<(
     Vec<ComponentFileWithContent>,
-    HashMap<String, BTreeMap<String, String>>,
+    HashMap<String, WorkspaceDependencySet>,
 )> {
     let mut files = Vec::new();
-    let mut deps_per_workspace: HashMap<String, BTreeMap<String, String>> = HashMap::new();
+    let mut deps_per_workspace: HashMap<String, WorkspaceDependencySet> = HashMap::new();
 
     for entry in components {
         let mut workspace_ids_for_component = HashSet::new();
@@ -772,9 +784,18 @@ fn gather_component_files(
         if let Some(target_id) = preferred_target {
             let deps_entry = deps_per_workspace
                 .entry(target_id.clone())
-                .or_insert_with(BTreeMap::new);
+                .or_insert_with(WorkspaceDependencySet::default);
             for (name, version) in &entry.component.dependencies {
-                deps_entry.entry(name.clone()).or_insert(version.clone());
+                deps_entry
+                    .regular
+                    .entry(name.clone())
+                    .or_insert(version.clone());
+            }
+            for (name, version) in &entry.component.dev_dependencies {
+                deps_entry
+                    .dev
+                    .entry(name.clone())
+                    .or_insert(version.clone());
             }
         }
     }
@@ -1209,12 +1230,12 @@ fn write_component_files(
 fn handle_workspace_dependencies(
     dry_run: bool,
     context: &WorkspaceContext,
-    deps_by_workspace: &HashMap<String, BTreeMap<String, String>>,
+    deps_by_workspace: &HashMap<String, WorkspaceDependencySet>,
     reporter: &ConsoleReporter,
 ) -> Result<()> {
     for handle in context.handles() {
-        let required = match deps_by_workspace.get(&handle.id) {
-            Some(map) if !map.is_empty() => map,
+        let spec = match deps_by_workspace.get(&handle.id) {
+            Some(spec) if !spec.is_empty() => spec,
             _ => continue,
         };
 
@@ -1226,17 +1247,19 @@ fn handle_workspace_dependencies(
             .unwrap_or_else(|| handle.root_abs.as_path());
 
         let installed = get_installed_dependencies_at(base_path)?;
-        let required_map: HashMap<String, String> = required
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let mut required_map: HashMap<String, String> = HashMap::new();
+        for (dep, version) in spec.regular.iter().chain(spec.dev.iter()) {
+            required_map.insert(dep.clone(), version.clone());
+        }
         let issues = check_project_requirements(base_path, &required_map)?;
 
         let mut deps_to_install = BTreeMap::new();
-        let mut incompatible = Vec::new();
+        let mut dev_deps_to_install = BTreeMap::new();
+        let mut incompatible_regular = Vec::new();
+        let mut incompatible_dev = Vec::new();
         let mut satisfied = Vec::new();
 
-        for (dep, version) in required {
+        for (dep, version) in &spec.regular {
             if let Some(issue) = issues.iter().find(|issue| issue.name == *dep) {
                 deps_to_install.insert(dep.clone(), version.clone());
                 let detail = match issue.reason {
@@ -1252,7 +1275,32 @@ fn handle_workspace_dependencies(
                         )
                     }
                 };
-                incompatible.push(detail);
+                incompatible_regular.push(detail);
+            } else if let Some(installed_version) = installed.get(dep) {
+                satisfied.push(format!(
+                    "{}@{} (satisfies {})",
+                    dep, installed_version, version
+                ));
+            }
+        }
+
+        for (dep, version) in &spec.dev {
+            if let Some(issue) = issues.iter().find(|issue| issue.name == *dep) {
+                dev_deps_to_install.insert(dep.clone(), version.clone());
+                let detail = match issue.reason {
+                    RequirementIssueReason::Missing => {
+                        format!("{}: required {}", dep, version)
+                    }
+                    RequirementIssueReason::Outdated | RequirementIssueReason::Unknown => {
+                        format!(
+                            "{}: installed {}, required {}",
+                            dep,
+                            issue.installed.clone().unwrap_or_else(|| "unknown".into()),
+                            version
+                        )
+                    }
+                };
+                incompatible_dev.push(detail);
             } else if let Some(installed_version) = installed.get(dep) {
                 satisfied.push(format!(
                     "{}@{} (satisfies {})",
@@ -1269,7 +1317,7 @@ fn handle_workspace_dependencies(
             }
         }
 
-        if !incompatible.is_empty() {
+        if !incompatible_regular.is_empty() {
             let incompatible_heading = if dry_run {
                 format!(
                     "[dry-run] Would update incompatible dependencies in {}:",
@@ -1279,7 +1327,22 @@ fn handle_workspace_dependencies(
                 format!("Incompatible dependencies updated in {}:", handle.label)
             };
             reporter.warn(format!("\n{}", incompatible_heading.yellow()));
-            for entry in &incompatible {
+            for entry in &incompatible_regular {
+                reporter.info(format!("   {}", entry.dimmed()));
+            }
+        }
+
+        if !incompatible_dev.is_empty() {
+            let incompatible_heading = if dry_run {
+                format!(
+                    "[dry-run] Would update incompatible dev dependencies in {}:",
+                    handle.label
+                )
+            } else {
+                format!("Incompatible dev dependencies updated in {}:", handle.label)
+            };
+            reporter.warn(format!("\n{}", incompatible_heading.yellow()));
+            for entry in &incompatible_dev {
                 reporter.info(format!("   {}", entry.dimmed()));
             }
         }
@@ -1320,6 +1383,49 @@ fn handle_workspace_dependencies(
                 reporter.info(format!(
                     "{}",
                     format!("Dependencies installed for {}.", handle.label).green()
+                ));
+            }
+        }
+
+        if !dev_deps_to_install.is_empty() {
+            let install_heading = if dry_run {
+                format!(
+                    "[dry-run] Would install dev dependencies in {}:",
+                    handle.label
+                )
+            } else {
+                format!("Installing missing dev dependencies in {}...", handle.label)
+            };
+            reporter.info(format!("\n{}", install_heading.blue()));
+            for (dep, version) in &dev_deps_to_install {
+                reporter.info(format!("   {}", format!("{}@{}", dep, version).dimmed()));
+            }
+
+            let install_map: HashMap<String, String> = dev_deps_to_install
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect();
+
+            if dry_run {
+                if let Some(plan) = plan_dependency_install(
+                    &install_map,
+                    &handle.package_manager_context,
+                    DependencyScope::Dev,
+                )? {
+                    reporter.info(format!(
+                        "{}",
+                        format!("   Command: {}", plan.command_line().join(" ")).dimmed()
+                    ));
+                }
+            } else if let Some(plan) = plan_dependency_install(
+                &install_map,
+                &handle.package_manager_context,
+                DependencyScope::Dev,
+            )? {
+                plan.execute()?;
+                reporter.info(format!(
+                    "{}",
+                    format!("Dev dependencies installed for {}.", handle.label).green()
                 ));
             }
         }

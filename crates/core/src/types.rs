@@ -23,6 +23,8 @@ pub struct Component {
     #[serde(default)]
     pub dependencies: HashMap<String, String>,
     #[serde(default)]
+    pub dev_dependencies: HashMap<String, String>,
+    #[serde(default)]
     pub internal_dependencies: Vec<String>,
     #[serde(default)]
     pub exports: Vec<String>,
