@@ -56,7 +56,7 @@ npx @nocta-ui/cli init --dry-run
 - Detects monorepo layouts, prompts for workspace roles, and links shared UI packages when present
 - Generates `nocta.config.json` tailored to your project directories
 - Creates or updates `nocta.workspace.json` so other workspaces can resolve this package
-- Downloads shared helpers (`lib/utils.ts`) and a base `icons.ts`
+- Downloads shared helpers (`lib/utils.ts` and `lib/icons.ts`)
 - Injects Nocta design tokens into the configured Tailwind CSS entry file
 - Installs core dependencies: `clsx`, `tailwind-merge`, `class-variance-authority`, `@ariakit/react`, `@radix-ui/react-icons`
 - Rolls back created files if initialization fails midway
@@ -65,7 +65,7 @@ npx @nocta-ui/cli init --dry-run
 ```bash
 npx @nocta-ui/cli list
 ```
-- Loads categories and component descriptions from `https://nocta-ui.com/registry`
+- Loads categories and component descriptions from `https://www.nocta-ui.com/registry`
 - Displays variants and sizes when provided
 - Reminds you to install components with `npx @nocta-ui/cli add <name>`
 
@@ -101,7 +101,7 @@ The Nocta CLI delivers near-instant command execution thanks to its **Rust-power
 
 ```json
 {
-  "$schema": "https://nocta-ui.com/registry/config-schema.json",
+  "$schema": "https://www.nocta-ui.com/registry/config-schema.json",
   "style": "default",
   "tailwind": {
     "css": "app/globals.css"

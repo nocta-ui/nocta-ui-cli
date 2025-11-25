@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::types::Config;
 
 pub const CONFIG_FILE_NAME: &str = "nocta.config.json";
-pub const DEFAULT_SCHEMA_URL: &str = "https://nocta-ui.com/registry/config-schema.json";
+pub const DEFAULT_SCHEMA_URL: &str = "https://www.nocta-ui.com/registry/config-schema.json";
 
 #[derive(Debug, Error)]
 pub enum ConfigError {

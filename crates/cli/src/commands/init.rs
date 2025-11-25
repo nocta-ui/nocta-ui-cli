@@ -23,7 +23,6 @@ use nocta_core::deps::{
 };
 use nocta_core::framework::{AppStructure, FrameworkKind, detect_framework};
 use nocta_core::fs::{file_exists, write_file};
-use nocta_core::paths::resolve_component_path;
 use nocta_core::registry::RegistryClient;
 use nocta_core::rollback::rollback_changes;
 use nocta_core::tailwind::{TailwindCheck, add_design_tokens_to_css, check_tailwind_installation};
@@ -511,7 +510,7 @@ impl<'a> InitCommand<'a> {
         config: &Config,
     ) -> Result<(Option<PathBuf>, Option<PathBuf>)> {
         let utils_path = PathBuf::from(format!("{}.ts", config.aliases.utils.filesystem_path()));
-        let icons_path = resolve_component_path("components/icons.ts", config);
+        let icons_path = utils_path.with_file_name("icons.ts");
 
         if manage_here {
             self.spinner
@@ -532,7 +531,7 @@ impl<'a> InitCommand<'a> {
                 self.client,
                 self.dry_run,
                 self.reporter,
-                "icons/icons.ts",
+                "lib/icons.ts",
                 &icons_path,
                 &mut self.created_paths,
                 "Icons component",

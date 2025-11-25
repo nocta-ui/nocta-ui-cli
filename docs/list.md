@@ -8,7 +8,7 @@ npx @nocta-ui/cli list
 ```
 
 ## What It Does
-- Downloads the registry manifest from the configured endpoint (defaults to `https://nocta-ui.com/registry`).
+- Downloads the registry manifest from the configured endpoint (defaults to `https://www.nocta-ui.com/registry`).
 - Sorts categories alphabetically and prints each component in lowercase (the `add` command is case-insensitive).
 - Shows available variants and sizes when the registry provides them.
 - Ends with quick examples for installing components.

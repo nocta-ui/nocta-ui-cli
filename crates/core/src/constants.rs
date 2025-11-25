@@ -1,7 +1,7 @@
 /// Shared constants used across the Nocta CLI and core library.
 pub mod registry {
     /// Default base endpoint for the Nocta components registry.
-    pub const DEFAULT_BASE_URL: &str = "https://nocta-ui.com/registry";
+    pub const DEFAULT_BASE_URL: &str = "https://www.nocta-ui.com/registry";
 
     /// Relative cache location for the registry manifest.
     pub const CACHE_PATH: &str = "registry/registry.json";

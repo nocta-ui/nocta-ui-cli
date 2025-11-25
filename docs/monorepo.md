@@ -22,7 +22,7 @@ npx @nocta-ui/cli init
 ```
 - Choose **Shared UI workspace** when prompted.
 - Provide the npm workspace/package name (for example `@workspace/ui`) if you use one.
-- The CLI writes `nocta.config.json`, helper files (`src/lib/utils.ts`, `src/components/ui/icons.ts`), and updates `nocta.workspace.json`.
+- The CLI writes `nocta.config.json`, helper files (`src/lib/utils.ts`, `src/lib/icons.ts`), and updates `nocta.workspace.json`.
 - Dependencies such as `@ariakit/react`, `clsx`, and `tailwind-merge` are installed here.
 - `package.json` is updated (or reported in dry-run) so `exports["."]` points at `src/index.ts`, the auto-generated barrel file.
 
@@ -34,7 +34,7 @@ npx @nocta-ui/cli init
 - Select **Application workspace** when prompted.
 - Pick the shared UI workspace(s) to link. The CLI stores relative config paths so later commands can find them.
 - Dependencies are *not* re-installed in the application workspace; they remain centralised in the shared UI package.
-- Helper files (`lib/utils.ts`, `components/ui/icons.ts`) are skipped because they already exist in the linked workspace.
+- Helper files (`lib/utils.ts`, `lib/icons.ts`) are skipped because they already exist in the linked workspace.
 
 ### 3. Add Components From an Application
 ```bash
