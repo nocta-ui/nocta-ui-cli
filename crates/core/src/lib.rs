@@ -11,4 +11,4 @@ pub mod tailwind;
 pub mod types;
 pub mod workspace;
 
-pub use registry::{RegistryClient, RegistryError};
+pub use registry::{RegistryClient, RegistryComponent, RegistryError};

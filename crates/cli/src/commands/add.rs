@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::ffi::OsStr;
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -24,7 +25,6 @@ use nocta_core::framework::{FrameworkDetection, FrameworkKind, detect_framework}
 use nocta_core::fs::{file_exists, read_file, write_file};
 use nocta_core::paths::resolve_component_path;
 use nocta_core::registry::RegistryClient;
-use nocta_core::rollback::rollback_changes;
 use nocta_core::workspace::{
     PackageManagerContext, PackageManagerKind, detect_package_manager, find_repo_root,
     load_workspace_manifest,
@@ -51,7 +51,7 @@ struct AddCommand<'a> {
     dry_run: bool,
     prefix: String,
     spinner: ProgressBar,
-    written_paths: Vec<PathBuf>,
+    written_files: Vec<FileChange>,
 }
 
 impl<'a> AddCommand<'a> {
@@ -82,7 +82,7 @@ impl<'a> AddCommand<'a> {
             dry_run,
             prefix,
             spinner,
-            written_paths: Vec::new(),
+            written_files: Vec::new(),
         }
     }
 
@@ -151,7 +151,7 @@ impl<'a> AddCommand<'a> {
             &workspace_context,
             &requested_entries,
             &all_component_files,
-            &mut self.written_paths,
+            &mut self.written_files,
         )?;
         self.report_export_updates(&export_updates);
 
@@ -309,7 +309,7 @@ impl<'a> AddCommand<'a> {
             ));
             self.reporter.blank();
             let spinner = create_spinner("[dry-run] Preparing file writes...");
-            write_component_files(component_files, true, &mut self.written_paths)?;
+            write_component_files(component_files, true, &mut self.written_files)?;
             spinner.finish_and_clear();
             Ok(true)
         } else {
@@ -325,7 +325,7 @@ impl<'a> AddCommand<'a> {
             }
 
             let spinner = create_spinner("Installing component files...");
-            write_component_files(component_files, false, &mut self.written_paths)?;
+            write_component_files(component_files, false, &mut self.written_files)?;
             spinner.finish_and_clear();
             Ok(true)
         }
@@ -341,7 +341,7 @@ impl<'a> AddCommand<'a> {
         } else {
             spinner.set_message("Installing component files...");
         }
-        write_component_files(component_files, self.dry_run, &mut self.written_paths)?;
+        write_component_files(component_files, self.dry_run, &mut self.written_files)?;
         Ok(())
     }
 
@@ -383,12 +383,23 @@ impl<'a> AddCommand<'a> {
     }
 
     fn rollback(&self) {
-        if !self.dry_run && !self.written_paths.is_empty() {
-            let _ = rollback_changes(&self.written_paths);
-            self.reporter.warn(format!(
-                "{}",
-                "Rolled back written component files".yellow()
-            ));
+        if self.dry_run || self.written_files.is_empty() {
+            return;
+        }
+
+        match rollback_file_changes(&self.written_files) {
+            Ok(_) => {
+                self.reporter.warn(format!(
+                    "{}",
+                    "Rolled back written component files".yellow()
+                ));
+            }
+            Err(err) => {
+                self.reporter.error(format!(
+                    "{}",
+                    format!("Failed to roll back written files: {}", err).red()
+                ));
+            }
         }
     }
 }
@@ -459,6 +470,12 @@ struct ComponentFileWithContent {
     component_name: String,
     component_slug: String,
     file_type: String,
+}
+
+#[derive(Clone)]
+struct FileChange {
+    path: PathBuf,
+    previous_contents: Option<Vec<u8>>,
 }
 
 #[derive(Clone, Default)]
@@ -711,27 +728,16 @@ fn collect_components(
     for slug in requested_slugs {
         let components = client.fetch_component_with_dependencies(slug)?;
         for component in components {
-            if let Some(component_slug) = component_slug(&component) {
-                if seen.insert(component_slug.clone()) {
-                    entries.push(ComponentEntry {
-                        slug: component_slug,
-                        component,
-                    });
-                }
+            if seen.insert(component.slug.clone()) {
+                entries.push(ComponentEntry {
+                    slug: component.slug,
+                    component: component.component,
+                });
             }
         }
     }
 
     Ok(entries)
-}
-
-fn component_slug(component: &Component) -> Option<String> {
-    component.files.first().and_then(|file| {
-        Path::new(&file.path)
-            .file_stem()
-            .and_then(|stem| stem.to_str())
-            .map(|s| s.to_lowercase())
-    })
 }
 
 fn gather_component_files(
@@ -871,7 +877,7 @@ fn sync_component_exports(
     context: &WorkspaceContext,
     component_entries: &[ComponentEntry],
     files: &[ComponentFileWithContent],
-    written_paths: &mut Vec<PathBuf>,
+    file_changes: &mut Vec<FileChange>,
 ) -> Result<Vec<ExportUpdate>> {
     let mut updates = Vec::new();
     if component_entries.is_empty() {
@@ -990,10 +996,10 @@ fn sync_component_exports(
             diff_paths(&barrel_abs, &context.current_dir).unwrap_or_else(|| barrel_abs.clone());
 
         if !dry_run {
+            ensure_change_record(&barrel_abs, file_changes)?;
             write_file(&barrel_abs, &new_content).with_context(|| {
                 format!("failed to write export barrel {}", barrel_abs.display())
             })?;
-            written_paths.push(barrel_abs.clone());
         }
 
         let touched_set: HashSet<String> = touched_modules.into_iter().collect();
@@ -1214,16 +1220,60 @@ fn find_existing_files(files: &[ComponentFileWithContent]) -> Vec<PathBuf> {
 fn write_component_files(
     files: &[ComponentFileWithContent],
     dry_run: bool,
-    written_paths: &mut Vec<PathBuf>,
+    file_changes: &mut Vec<FileChange>,
 ) -> Result<()> {
     for file in files {
         if dry_run {
             continue;
         }
+        ensure_change_record(&file.absolute_path, file_changes)?;
         write_file(&file.absolute_path, &file.content)
             .with_context(|| format!("failed to write {}", file.display_path.display()))?;
-        written_paths.push(file.absolute_path.clone());
     }
+    Ok(())
+}
+
+fn ensure_change_record(path: &Path, changes: &mut Vec<FileChange>) -> Result<()> {
+    if changes.iter().any(|change| change.path == path) {
+        return Ok(());
+    }
+
+    let previous_contents = if path.exists() {
+        Some(fs::read(path).with_context(|| format!("failed to snapshot {}", path.display()))?)
+    } else {
+        None
+    };
+
+    changes.push(FileChange {
+        path: path.to_path_buf(),
+        previous_contents,
+    });
+
+    Ok(())
+}
+
+fn rollback_file_changes(changes: &[FileChange]) -> Result<()> {
+    for change in changes.iter().rev() {
+        match &change.previous_contents {
+            Some(contents) => {
+                if let Some(parent) = change.path.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        fs::create_dir_all(parent)
+                            .with_context(|| format!("failed to recreate {}", parent.display()))?;
+                    }
+                }
+                fs::write(&change.path, contents)
+                    .with_context(|| format!("failed to restore {}", change.path.display()))?;
+            }
+            None => {
+                if change.path.exists() {
+                    fs::remove_file(&change.path)
+                        .with_context(|| format!("failed to remove {}", change.path.display()))?;
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 

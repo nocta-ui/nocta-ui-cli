@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::env;
+use std::sync::Arc;
 use std::time::Duration;
 
 use base64::Engine;
@@ -11,6 +12,52 @@ use ureq::{Agent, Error as UreqError};
 use crate::cache;
 use crate::constants::registry as registry_constants;
 use crate::types::{CategoryInfo, Component, Registry};
+
+#[derive(Debug, Clone)]
+struct ComponentManifest {
+    by_path: HashMap<String, String>,
+    fallback_by_file: HashMap<String, String>,
+}
+
+impl ComponentManifest {
+    fn from_raw(entries: HashMap<String, String>) -> Self {
+        let mut by_path = HashMap::new();
+        let mut fallback_by_file = HashMap::new();
+
+        for (key, value) in entries {
+            let normalized = normalize_manifest_key(&key);
+            if normalized.contains('/') {
+                by_path.insert(normalized, value);
+            } else {
+                fallback_by_file.insert(normalized, value);
+            }
+        }
+
+        Self {
+            by_path,
+            fallback_by_file,
+        }
+    }
+
+    fn lookup(&self, requested_path: &str) -> Option<&String> {
+        let normalized = normalize_manifest_key(requested_path);
+        if let Some(value) = self.by_path.get(&normalized) {
+            return Some(value);
+        }
+
+        normalized
+            .rsplit('/')
+            .next()
+            .and_then(|name| self.fallback_by_file.get(name))
+    }
+}
+
+fn normalize_manifest_key(path: &str) -> String {
+    path.replace('\\', "/")
+        .trim_start_matches("./")
+        .trim_start_matches('/')
+        .to_string()
+}
 
 fn default_registry_ttl() -> Duration {
     Duration::from_millis(
@@ -55,10 +102,16 @@ pub struct RegistrySummary {
     pub description: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RegistryComponent {
+    pub slug: String,
+    pub component: Component,
+}
+
 pub struct RegistryClient {
     agent: Agent,
     base_url: String,
-    components_manifest: RefCell<Option<HashMap<String, String>>>,
+    components_manifest: RefCell<Option<Arc<ComponentManifest>>>,
     registry_cache: RefCell<Option<(String, Registry)>>,
 }
 
@@ -89,7 +142,7 @@ impl RegistryClient {
     }
 
     fn read_cache(&self, path: &str, ttl: Duration) -> Option<String> {
-        match cache::read_cache_text(path, Some(ttl), true) {
+        match cache::read_cache_text(path, Some(ttl), false) {
             Ok(Some(text)) => Some(text),
             _ => None,
         }
@@ -186,7 +239,7 @@ impl RegistryClient {
     pub fn fetch_component_with_dependencies(
         &self,
         component: &str,
-    ) -> Result<Vec<Component>, RegistryError> {
+    ) -> Result<Vec<RegistryComponent>, RegistryError> {
         let registry = self.fetch_registry()?;
         let mut ordered = Vec::new();
         let mut visiting = HashSet::new();
@@ -209,7 +262,7 @@ impl RegistryClient {
         component: &str,
         visiting: &mut HashSet<String>,
         visited: &mut HashSet<String>,
-        ordered: &mut Vec<Component>,
+        ordered: &mut Vec<RegistryComponent>,
     ) -> Result<(), RegistryError> {
         if visited.contains(component) {
             return Ok(());
@@ -233,7 +286,10 @@ impl RegistryClient {
 
         visiting.remove(component);
         visited.insert(component.to_string());
-        ordered.push(current.clone());
+        ordered.push(RegistryComponent {
+            slug: component.to_string(),
+            component: current.clone(),
+        });
         Ok(())
     }
 
@@ -244,9 +300,9 @@ impl RegistryClient {
         self.fetch_with_cache(&url, &cache_path, default_asset_ttl())
     }
 
-    fn load_components_manifest(&self) -> Result<HashMap<String, String>, RegistryError> {
+    fn load_components_manifest(&self) -> Result<Arc<ComponentManifest>, RegistryError> {
         if let Some(manifest) = self.components_manifest.borrow().as_ref() {
-            return Ok(manifest.clone());
+            return Ok(Arc::clone(manifest));
         }
 
         let manifest_text = self.fetch_registry_asset(registry_constants::COMPONENTS_MANIFEST)?;
@@ -257,30 +313,25 @@ impl RegistryClient {
                     err.to_string(),
                 )
             })?;
-        self.components_manifest.replace(Some(manifest.clone()));
+        let manifest = Arc::new(ComponentManifest::from_raw(manifest));
+        self.components_manifest
+            .replace(Some(Arc::clone(&manifest)));
         Ok(manifest)
     }
 
     pub fn fetch_component_file(&self, path: &str) -> Result<String, RegistryError> {
-        let file_name = path
-            .split('/')
-            .last()
-            .filter(|segment| !segment.is_empty())
-            .ok_or_else(|| {
-                RegistryError::AssetParse(path.to_string(), "invalid component path".into())
-            })?;
-
         let manifest = self.load_components_manifest()?;
         let encoded = manifest
-            .get(file_name)
-            .ok_or_else(|| RegistryError::ComponentNotFound(file_name.to_string()))?;
+            .lookup(path)
+            .cloned()
+            .ok_or_else(|| RegistryError::ComponentNotFound(path.to_string()))?;
 
         BASE64_STANDARD
             .decode(encoded)
-            .map_err(|err| RegistryError::Decode(file_name.to_string(), err.to_string()))
+            .map_err(|err| RegistryError::Decode(path.to_string(), err.to_string()))
             .and_then(|bytes| {
                 String::from_utf8(bytes)
-                    .map_err(|err| RegistryError::Decode(file_name.to_string(), err.to_string()))
+                    .map_err(|err| RegistryError::Decode(path.to_string(), err.to_string()))
             })
     }
 }

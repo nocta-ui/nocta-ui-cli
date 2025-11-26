@@ -70,5 +70,6 @@ At the end of a successful run you will see:
 - **Component not found** – Run `npx @nocta-ui/cli list` to confirm the canonical component name.
 - **Workspace unresolved** – Ensure linked workspaces are defined in `nocta.config.json` and that the relative `config` paths are correct.
 - **Dependency conflicts** – Resolve manual overrides in your `package.json` if you want to keep a different version; re-run `add` afterwards to ensure compatibility.
+- **Command aborted mid-run** – The CLI snapshots every overwritten file and restores the previous content automatically if an error occurs, so partial installs won't delete custom code.
 
 Repeat the command any time you need to scaffold new components or refresh existing ones with the latest registry updates.
