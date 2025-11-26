@@ -8,8 +8,12 @@ use nocta_core::RegistryClient;
 #[derive(Args, Debug, Clone, Default)]
 pub struct ListArgs {}
 
-pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, _args: ListArgs) -> CommandResult {
-    let registry = client.fetch_registry()?;
+pub async fn run(
+    client: &RegistryClient,
+    reporter: &ConsoleReporter,
+    _args: ListArgs,
+) -> CommandResult {
+    let registry = client.fetch_registry().await?;
 
     reporter.info(format!(
         "{}\n",

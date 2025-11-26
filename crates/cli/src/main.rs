@@ -35,9 +35,10 @@ enum Commands {
     Cache(cache::CacheArgs),
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let reporter = ConsoleReporter::new();
-    match run(&reporter) {
+    match run(&reporter).await {
         Ok(CommandOutcome::Completed) | Ok(CommandOutcome::NoOp) => {}
         Err(err) => {
             reporter.error(format!("Error: {:#}", err));
@@ -46,7 +47,7 @@ fn main() {
     }
 }
 
-fn run(reporter: &ConsoleReporter) -> CommandResult {
+async fn run(reporter: &ConsoleReporter) -> CommandResult {
     let cli = Cli::parse();
 
     let registry_url = cli.registry_url.as_deref().unwrap_or(DEFAULT_BASE_URL);
@@ -54,9 +55,9 @@ fn run(reporter: &ConsoleReporter) -> CommandResult {
     let client = RegistryClient::new(registry_url);
 
     match cli.command {
-        Commands::Init(args) => init::run(&client, reporter, args),
-        Commands::Add(args) => add::run(&client, reporter, args),
-        Commands::List(args) => list::run(&client, reporter, args),
-        Commands::Cache(args) => cache::run(reporter, args),
+        Commands::Init(args) => init::run(&client, reporter, args).await,
+        Commands::Add(args) => add::run(&client, reporter, args).await,
+        Commands::List(args) => list::run(&client, reporter, args).await,
+        Commands::Cache(args) => cache::run(reporter, args).await,
     }
 }

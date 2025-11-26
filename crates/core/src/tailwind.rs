@@ -96,10 +96,11 @@ fn insert_snippet(existing: &str, snippet: &str) -> String {
     result
 }
 
-pub fn add_design_tokens_to_css(registry: &RegistryClient, css_path: &str) -> Result<bool> {
+pub async fn add_design_tokens_to_css(registry: &RegistryClient, css_path: &str) -> Result<bool> {
     let full_path = css_full_path(css_path);
     let registry_css = registry
         .fetch_registry_asset(CSS_BUNDLE_PATH)
+        .await
         .with_context(|| format!("failed to fetch registry CSS asset '{}'", CSS_BUNDLE_PATH))?;
     let trimmed_registry_css = registry_css.trim_start();
 

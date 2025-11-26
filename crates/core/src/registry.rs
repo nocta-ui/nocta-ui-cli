@@ -7,9 +7,10 @@ use std::time::Duration;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use crc32fast::Hasher as Crc32Hasher;
+use reqwest::header::{ETAG, IF_MODIFIED_SINCE, IF_NONE_MATCH, LAST_MODIFIED};
+use reqwest::{Client, Error as ReqwestError, StatusCode};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use ureq::{Agent, Error as UreqError};
 
 use crate::cache;
 use crate::constants::registry as registry_constants;
@@ -93,7 +94,7 @@ pub enum RegistryError {
     AssetParse(String, String),
 }
 
-fn map_network_error(err: UreqError) -> RegistryError {
+fn map_network_error(err: ReqwestError) -> RegistryError {
     RegistryError::Network(err.to_string())
 }
 
@@ -123,7 +124,7 @@ pub struct RegistryComponent {
 }
 
 pub struct RegistryClient {
-    agent: Agent,
+    client: Client,
     base_url: String,
     cache_namespace: String,
     components_manifest: RefCell<Option<Arc<ComponentManifest>>>,
@@ -134,7 +135,7 @@ impl RegistryClient {
     pub fn new(base_url: impl Into<String>) -> Self {
         let base_url = base_url.into();
         Self {
-            agent: Agent::new_with_defaults(),
+            client: Client::new(),
             cache_namespace: cache_namespace_for(&base_url),
             base_url,
             components_manifest: RefCell::new(None),
@@ -195,7 +196,7 @@ impl RegistryClient {
         }
     }
 
-    fn fetch_with_cache(
+    async fn fetch_with_cache(
         &self,
         url: &str,
         cache_relative: &str,
@@ -208,17 +209,18 @@ impl RegistryClient {
         }
 
         let metadata = self.load_cache_metadata(&cache_path);
-        let mut request = self.agent.get(url);
+        let mut request = self.client.get(url);
         if let Some(etag) = &metadata.etag {
-            request = request.header("If-None-Match", etag);
+            request = request.header(IF_NONE_MATCH, etag);
         }
         if let Some(last_modified) = &metadata.last_modified {
-            request = request.header("If-Modified-Since", last_modified);
+            request = request.header(IF_MODIFIED_SINCE, last_modified);
         }
 
-        match request.call() {
+        match request.send().await {
             Ok(response) => {
-                if response.status() == 304 {
+                let status = response.status();
+                if status == StatusCode::NOT_MODIFIED {
                     if let Some(cached) = self.read_cache(&cache_path, ttl, true) {
                         return Ok(cached);
                     }
@@ -228,19 +230,28 @@ impl RegistryClient {
                     ));
                 }
 
+                if !status.is_success() {
+                    if let Some(cached) = self.read_cache(&cache_path, ttl, true) {
+                        return Ok(cached);
+                    }
+                    return Err(RegistryError::Network(format!(
+                        "registry request failed with status {}",
+                        status
+                    )));
+                }
+
                 let etag = response
                     .headers()
-                    .get("ETag")
+                    .get(ETAG)
                     .and_then(|value| value.to_str().ok())
                     .map(|value| value.to_string());
                 let last_modified = response
                     .headers()
-                    .get("Last-Modified")
+                    .get(LAST_MODIFIED)
                     .and_then(|value| value.to_str().ok())
                     .map(|value| value.to_string());
 
-                let mut reader = response.into_body();
-                match reader.read_to_string() {
+                match response.text().await {
                     Ok(body) => {
                         self.write_cache(&cache_path, &body);
                         self.store_cache_metadata(
@@ -271,12 +282,14 @@ impl RegistryClient {
         }
     }
 
-    pub fn fetch_registry(&self) -> Result<Registry, RegistryError> {
-        let body = self.fetch_with_cache(
-            &self.registry_url(),
-            registry_constants::CACHE_PATH,
-            default_registry_ttl(),
-        )?;
+    pub async fn fetch_registry(&self) -> Result<Registry, RegistryError> {
+        let body = self
+            .fetch_with_cache(
+                &self.registry_url(),
+                registry_constants::CACHE_PATH,
+                default_registry_ttl(),
+            )
+            .await?;
         if let Some((cached_body, registry)) = self.registry_cache.borrow().as_ref() {
             if cached_body == &body {
                 return Ok(registry.clone());
@@ -289,8 +302,8 @@ impl RegistryClient {
         Ok(registry)
     }
 
-    pub fn fetch_summary(&self) -> Result<RegistrySummary, RegistryError> {
-        let registry = self.fetch_registry()?;
+    pub async fn fetch_summary(&self) -> Result<RegistrySummary, RegistryError> {
+        let registry = self.fetch_registry().await?;
         Ok(RegistrySummary {
             name: registry.name,
             version: registry.version,
@@ -298,23 +311,23 @@ impl RegistryClient {
         })
     }
 
-    pub fn list_components(&self) -> Result<Vec<Component>, RegistryError> {
-        let registry = self.fetch_registry()?;
+    pub async fn list_components(&self) -> Result<Vec<Component>, RegistryError> {
+        let registry = self.fetch_registry().await?;
         Ok(registry.components.into_values().collect())
     }
 
-    pub fn categories(&self) -> Result<HashMap<String, CategoryInfo>, RegistryError> {
-        let registry = self.fetch_registry()?;
+    pub async fn categories(&self) -> Result<HashMap<String, CategoryInfo>, RegistryError> {
+        let registry = self.fetch_registry().await?;
         Ok(registry.categories)
     }
 
-    pub fn registry_requirements(&self) -> Result<HashMap<String, String>, RegistryError> {
-        let registry = self.fetch_registry()?;
+    pub async fn registry_requirements(&self) -> Result<HashMap<String, String>, RegistryError> {
+        let registry = self.fetch_registry().await?;
         Ok(registry.requirements)
     }
 
-    pub fn fetch_component(&self, name: &str) -> Result<Component, RegistryError> {
-        let registry = self.fetch_registry()?;
+    pub async fn fetch_component(&self, name: &str) -> Result<Component, RegistryError> {
+        let registry = self.fetch_registry().await?;
         registry
             .components
             .get(name)
@@ -322,11 +335,11 @@ impl RegistryClient {
             .ok_or_else(|| RegistryError::ComponentNotFound(name.to_string()))
     }
 
-    pub fn fetch_component_with_dependencies(
+    pub async fn fetch_component_with_dependencies(
         &self,
         component: &str,
     ) -> Result<Vec<RegistryComponent>, RegistryError> {
-        let registry = self.fetch_registry()?;
+        let registry = self.fetch_registry().await?;
         let mut ordered = Vec::new();
         let mut visiting = HashSet::new();
         let mut visited = HashSet::new();
@@ -379,19 +392,22 @@ impl RegistryClient {
         Ok(())
     }
 
-    pub fn fetch_registry_asset(&self, asset_path: &str) -> Result<String, RegistryError> {
+    pub async fn fetch_registry_asset(&self, asset_path: &str) -> Result<String, RegistryError> {
         let normalized = asset_path.trim_start_matches('/');
         let url = self.asset_url(normalized);
         let cache_path = format!("assets/{}", normalized);
         self.fetch_with_cache(&url, &cache_path, default_asset_ttl())
+            .await
     }
 
-    fn load_components_manifest(&self) -> Result<Arc<ComponentManifest>, RegistryError> {
+    async fn load_components_manifest(&self) -> Result<Arc<ComponentManifest>, RegistryError> {
         if let Some(manifest) = self.components_manifest.borrow().as_ref() {
             return Ok(Arc::clone(manifest));
         }
 
-        let manifest_text = self.fetch_registry_asset(registry_constants::COMPONENTS_MANIFEST)?;
+        let manifest_text = self
+            .fetch_registry_asset(registry_constants::COMPONENTS_MANIFEST)
+            .await?;
         let manifest: HashMap<String, String> =
             serde_json::from_str(&manifest_text).map_err(|err| {
                 RegistryError::AssetParse(
@@ -405,8 +421,8 @@ impl RegistryClient {
         Ok(manifest)
     }
 
-    pub fn fetch_component_file(&self, path: &str) -> Result<String, RegistryError> {
-        let manifest = self.load_components_manifest()?;
+    pub async fn fetch_component_file(&self, path: &str) -> Result<String, RegistryError> {
+        let manifest = self.load_components_manifest().await?;
         let encoded = manifest
             .lookup(path)
             .cloned()

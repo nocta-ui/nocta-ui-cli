@@ -73,7 +73,7 @@ impl<'a> InitCommand<'a> {
         }
     }
 
-    fn execute(&mut self) -> CommandResult {
+    async fn execute(&mut self) -> CommandResult {
         if read_config()?.is_some() {
             self.spinner.finish_and_clear();
             self.reporter
@@ -94,7 +94,7 @@ impl<'a> InitCommand<'a> {
             Some(detection) => detection,
             None => return Ok(CommandOutcome::NoOp),
         };
-        let requirements = self.client.registry_requirements()?;
+        let requirements = self.client.registry_requirements().await?;
         let required_dependencies: BTreeMap<String, String> = requirements
             .iter()
             .map(|(n, v)| (n.clone(), v.clone()))
@@ -118,9 +118,12 @@ impl<'a> InitCommand<'a> {
         self.ensure_package_exports(&workspace, &config)?;
         self.handle_dependencies(manage_dependencies, &required_dependencies, &workspace)?;
 
-        let (utils_created, icons_created) =
-            self.sync_registry_assets(manage_dependencies, &config)?;
-        let tokens_added = self.apply_tailwind_tokens(manage_dependencies, &workspace, &config)?;
+        let (utils_created, icons_created) = self
+            .sync_registry_assets(manage_dependencies, &config)
+            .await?;
+        let tokens_added = self
+            .apply_tailwind_tokens(manage_dependencies, &workspace, &config)
+            .await?;
         let tailwind_is_v4 = tailwind_v4(&tailwind);
         self.persist_workspace_manifest(&workspace)?;
 
@@ -504,7 +507,7 @@ impl<'a> InitCommand<'a> {
         Ok(())
     }
 
-    fn sync_registry_assets(
+    async fn sync_registry_assets(
         &mut self,
         manage_here: bool,
         config: &Config,
@@ -523,7 +526,8 @@ impl<'a> InitCommand<'a> {
                 &utils_path,
                 &mut self.created_paths,
                 "Utility functions",
-            )?;
+            )
+            .await?;
 
             self.spinner
                 .set_message(format!("{}Creating base icons component...", self.prefix));
@@ -535,7 +539,8 @@ impl<'a> InitCommand<'a> {
                 &icons_path,
                 &mut self.created_paths,
                 "Icons component",
-            )?;
+            )
+            .await?;
             Ok((
                 utils_created.then_some(utils_path),
                 icons_created.then_some(icons_path),
@@ -557,7 +562,7 @@ impl<'a> InitCommand<'a> {
         }
     }
 
-    fn apply_tailwind_tokens(
+    async fn apply_tailwind_tokens(
         &mut self,
         manage_here: bool,
         _workspace: &WorkspaceResolution,
@@ -579,7 +584,7 @@ impl<'a> InitCommand<'a> {
             return Ok(true);
         }
 
-        let added = add_design_tokens_to_css(self.client, &tailwind_css)?;
+        let added = add_design_tokens_to_css(self.client, &tailwind_css).await?;
         if added {
             self.created_paths.push(PathBuf::from(&tailwind_css));
         }
@@ -907,9 +912,13 @@ fn workspace_kind_label(kind: WorkspaceKind) -> &'static str {
     }
 }
 
-pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, args: InitArgs) -> CommandResult {
+pub async fn run(
+    client: &RegistryClient,
+    reporter: &ConsoleReporter,
+    args: InitArgs,
+) -> CommandResult {
     let mut command = InitCommand::new(client, reporter, args);
-    match command.execute() {
+    match command.execute().await {
         Ok(outcome) => Ok(outcome),
         Err(err) => {
             command.finish();
@@ -1126,7 +1135,7 @@ fn print_tailwind_v4_required(reporter: &ConsoleReporter, check: &TailwindCheck)
     reporter.info(format!("{}", "   bun add -D tailwindcss@latest".dimmed()));
 }
 
-fn ensure_registry_asset(
+async fn ensure_registry_asset(
     client: &RegistryClient,
     dry_run: bool,
     reporter: &ConsoleReporter,
@@ -1158,6 +1167,7 @@ fn ensure_registry_asset(
 
     let asset = client
         .fetch_registry_asset(asset_path)
+        .await
         .with_context(|| format!("failed to fetch registry asset {}", asset_path))?;
     write_file(target_path, &asset)
         .with_context(|| format!("failed to write {}", target_path.display()))?;

@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, anyhow};
 use clap::Args;
 use dialoguer::Confirm;
+use futures::stream::{self, StreamExt};
 use indicatif::ProgressBar;
 use once_cell::sync::Lazy;
 use owo_colors::OwoColorize;
@@ -86,7 +87,7 @@ impl<'a> AddCommand<'a> {
         }
     }
 
-    fn execute(&mut self) -> CommandResult {
+    async fn execute(&mut self) -> CommandResult {
         let config = match self.load_config()? {
             Some(config) => config,
             None => return Ok(CommandOutcome::NoOp),
@@ -101,7 +102,7 @@ impl<'a> AddCommand<'a> {
             "{}Fetching components and dependencies...",
             self.prefix
         ));
-        let lookup = self.fetch_component_lookup()?;
+        let lookup = self.fetch_component_lookup().await?;
         let requested_slugs = match self.resolve_requested_components(&lookup)? {
             Some(slugs) => slugs,
             None => {
@@ -109,7 +110,7 @@ impl<'a> AddCommand<'a> {
                 return Ok(CommandOutcome::NoOp);
             }
         };
-        let component_entries = collect_components(self.client, &requested_slugs)?;
+        let component_entries = collect_components(self.client, &requested_slugs).await?;
         let requested_entries: Vec<_> = component_entries
             .iter()
             .filter(|entry| requested_slugs.contains(&entry.slug))
@@ -131,7 +132,7 @@ impl<'a> AddCommand<'a> {
         });
 
         let (all_component_files, deps_by_workspace) =
-            gather_component_files(self.client, &component_entries, &workspace_context)?;
+            gather_component_files(self.client, &component_entries, &workspace_context).await?;
 
         prep_spinner.set_message("Checking existing files...");
         let existing_files = find_existing_files(&all_component_files);
@@ -221,8 +222,8 @@ impl<'a> AddCommand<'a> {
         build_workspace_context(config, detection)
     }
 
-    fn fetch_component_lookup(&self) -> Result<HashMap<String, String>> {
-        let registry = self.client.fetch_registry()?;
+    async fn fetch_component_lookup(&self) -> Result<HashMap<String, String>> {
+        let registry = self.client.fetch_registry().await?;
         Ok(build_component_lookup(&registry.components))
     }
 
@@ -404,9 +405,13 @@ impl<'a> AddCommand<'a> {
     }
 }
 
-pub fn run(client: &RegistryClient, reporter: &ConsoleReporter, args: AddArgs) -> CommandResult {
+pub async fn run(
+    client: &RegistryClient,
+    reporter: &ConsoleReporter,
+    args: AddArgs,
+) -> CommandResult {
     let mut command = AddCommand::new(client, reporter, args);
-    match command.execute() {
+    match command.execute().await {
         Ok(outcome) => Ok(outcome),
         Err(err) => {
             command.finish();
@@ -470,6 +475,18 @@ struct ComponentFileWithContent {
     component_name: String,
     component_slug: String,
     file_type: String,
+}
+
+#[derive(Clone)]
+struct PendingComponentFile {
+    workspace_handle: WorkspaceHandle,
+    workspace_id: String,
+    absolute_path: PathBuf,
+    display_path: PathBuf,
+    component_name: String,
+    component_slug: String,
+    file_type: String,
+    registry_path: String,
 }
 
 #[derive(Clone)]
@@ -718,7 +735,7 @@ fn build_component_lookup(components: &HashMap<String, Component>) -> HashMap<St
     lookup
 }
 
-fn collect_components(
+async fn collect_components(
     client: &RegistryClient,
     requested_slugs: &[String],
 ) -> Result<Vec<ComponentEntry>> {
@@ -726,7 +743,7 @@ fn collect_components(
     let mut entries = Vec::new();
 
     for slug in requested_slugs {
-        let components = client.fetch_component_with_dependencies(slug)?;
+        let components = client.fetch_component_with_dependencies(slug).await?;
         for component in components {
             if seen.insert(component.slug.clone()) {
                 entries.push(ComponentEntry {
@@ -740,7 +757,9 @@ fn collect_components(
     Ok(entries)
 }
 
-fn gather_component_files(
+const FILE_FETCH_CONCURRENCY: usize = 6;
+
+async fn gather_component_files(
     client: &RegistryClient,
     components: &[ComponentEntry],
     context: &WorkspaceContext,
@@ -750,16 +769,13 @@ fn gather_component_files(
 )> {
     let mut files = Vec::new();
     let mut deps_per_workspace: HashMap<String, WorkspaceDependencySet> = HashMap::new();
+    let mut pending_files = Vec::new();
 
     for entry in components {
         let mut workspace_ids_for_component = HashSet::new();
 
         for file in &entry.component.files {
-            let handle = select_workspace_handle(context, file.target.as_deref())?;
-            let contents = client
-                .fetch_component_file(&file.path)
-                .with_context(|| format!("failed to fetch component asset {}", file.path))?;
-            let normalized = normalize_component_content(&contents, handle);
+            let handle = select_workspace_handle(context, file.target.as_deref())?.clone();
             let mut relative_path = resolve_component_path(&file.path, &handle.config);
 
             if let Some(flattened) =
@@ -772,14 +788,15 @@ fn gather_component_files(
             let display_path = diff_paths(&absolute_path, &context.current_dir)
                 .unwrap_or_else(|| absolute_path.clone());
 
-            files.push(ComponentFileWithContent {
+            pending_files.push(PendingComponentFile {
+                workspace_handle: handle.clone(),
                 workspace_id: handle.id.clone(),
                 absolute_path,
                 display_path,
-                content: normalized,
                 component_name: entry.component.name.clone(),
                 component_slug: entry.slug.clone(),
                 file_type: file.file_type.clone(),
+                registry_path: file.path.clone(),
             });
 
             workspace_ids_for_component.insert(handle.id.clone());
@@ -804,6 +821,33 @@ fn gather_component_files(
                     .or_insert(version.clone());
             }
         }
+    }
+
+    let client_ref = client;
+    let mut fetch_results = stream::iter(pending_files.into_iter().map(|pending| async move {
+        let contents = client_ref
+            .fetch_component_file(&pending.registry_path)
+            .await;
+        (pending, contents)
+    }))
+    .buffer_unordered(FILE_FETCH_CONCURRENCY)
+    .collect::<Vec<_>>()
+    .await;
+
+    for (pending, contents_result) in fetch_results.drain(..) {
+        let contents = contents_result.with_context(|| {
+            format!("failed to fetch component asset {}", pending.registry_path)
+        })?;
+        let normalized = normalize_component_content(&contents, &pending.workspace_handle);
+        files.push(ComponentFileWithContent {
+            workspace_id: pending.workspace_id,
+            absolute_path: pending.absolute_path,
+            display_path: pending.display_path,
+            content: normalized,
+            component_name: pending.component_name,
+            component_slug: pending.component_slug,
+            file_type: pending.file_type,
+        });
     }
 
     Ok((files, deps_per_workspace))

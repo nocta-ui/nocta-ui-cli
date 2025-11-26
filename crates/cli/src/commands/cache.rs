@@ -23,7 +23,7 @@ pub enum CacheCommand {
     },
 }
 
-pub fn run(reporter: &ConsoleReporter, args: CacheArgs) -> CommandResult {
+pub async fn run(reporter: &ConsoleReporter, args: CacheArgs) -> CommandResult {
     match args.command.unwrap_or(CacheCommand::Info) {
         CacheCommand::Info => {
             let dir = cache::cache_dir();
