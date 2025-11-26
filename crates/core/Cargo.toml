@@ -1,6 +1,6 @@
 [package]
 name = "nocta_core"
-version = "0.2.3"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
@@ -15,3 +15,5 @@ ureq.workspace = true
 base64.workspace = true
 once_cell.workspace = true
 semver.workspace = true
+crc32fast.workspace = true
+tempfile.workspace = true

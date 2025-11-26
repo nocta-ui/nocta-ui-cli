@@ -6,6 +6,8 @@ use std::time::Duration;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use crc32fast::Hasher as Crc32Hasher;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use ureq::{Agent, Error as UreqError};
 
@@ -95,6 +97,18 @@ fn map_network_error(err: UreqError) -> RegistryError {
     RegistryError::Network(err.to_string())
 }
 
+fn cache_namespace_for(base_url: &str) -> String {
+    let mut hasher = Crc32Hasher::new();
+    hasher.update(base_url.trim().as_bytes());
+    format!("registry/{:08x}", hasher.finalize())
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+struct HttpCacheMetadata {
+    etag: Option<String>,
+    last_modified: Option<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct RegistrySummary {
     pub name: String,
@@ -111,15 +125,18 @@ pub struct RegistryComponent {
 pub struct RegistryClient {
     agent: Agent,
     base_url: String,
+    cache_namespace: String,
     components_manifest: RefCell<Option<Arc<ComponentManifest>>>,
     registry_cache: RefCell<Option<(String, Registry)>>,
 }
 
 impl RegistryClient {
     pub fn new(base_url: impl Into<String>) -> Self {
+        let base_url = base_url.into();
         Self {
             agent: Agent::new_with_defaults(),
-            base_url: base_url.into(),
+            cache_namespace: cache_namespace_for(&base_url),
+            base_url,
             components_manifest: RefCell::new(None),
             registry_cache: RefCell::new(None),
         }
@@ -141,8 +158,16 @@ impl RegistryClient {
         format!("{}/{}", self.base_url(), asset.trim_start_matches('/'))
     }
 
-    fn read_cache(&self, path: &str, ttl: Duration) -> Option<String> {
-        match cache::read_cache_text(path, Some(ttl), false) {
+    fn namespaced_path(&self, rel_path: &str) -> String {
+        format!(
+            "{}/{}",
+            self.cache_namespace,
+            rel_path.trim_start_matches('/')
+        )
+    }
+
+    fn read_cache(&self, path: &str, ttl: Duration, accept_stale: bool) -> Option<String> {
+        match cache::read_cache_text(path, Some(ttl), accept_stale) {
             Ok(Some(text)) => Some(text),
             _ => None,
         }
@@ -152,22 +177,83 @@ impl RegistryClient {
         let _ = cache::write_cache_text(path, contents);
     }
 
+    fn load_cache_metadata(&self, cache_path: &str) -> HttpCacheMetadata {
+        match cache::read_cache_metadata(cache_path) {
+            Ok(Some(bytes)) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            _ => HttpCacheMetadata::default(),
+        }
+    }
+
+    fn store_cache_metadata(&self, cache_path: &str, metadata: HttpCacheMetadata) {
+        if metadata.etag.is_none() && metadata.last_modified.is_none() {
+            let _ = cache::remove_cache_metadata(cache_path);
+            return;
+        }
+
+        if let Ok(bytes) = serde_json::to_vec(&metadata) {
+            let _ = cache::write_cache_metadata(cache_path, &bytes);
+        }
+    }
+
     fn fetch_with_cache(
         &self,
         url: &str,
-        cache_path: &str,
+        cache_relative: &str,
         ttl: Duration,
     ) -> Result<String, RegistryError> {
-        match self.agent.get(url).call() {
+        let cache_path = self.namespaced_path(cache_relative);
+
+        if let Some(fresh) = self.read_cache(&cache_path, ttl, false) {
+            return Ok(fresh);
+        }
+
+        let metadata = self.load_cache_metadata(&cache_path);
+        let mut request = self.agent.get(url);
+        if let Some(etag) = &metadata.etag {
+            request = request.header("If-None-Match", etag);
+        }
+        if let Some(last_modified) = &metadata.last_modified {
+            request = request.header("If-Modified-Since", last_modified);
+        }
+
+        match request.call() {
             Ok(response) => {
+                if response.status() == 304 {
+                    if let Some(cached) = self.read_cache(&cache_path, ttl, true) {
+                        return Ok(cached);
+                    }
+
+                    return Err(RegistryError::Network(
+                        "registry returned 304 but cache entry is missing".into(),
+                    ));
+                }
+
+                let etag = response
+                    .headers()
+                    .get("ETag")
+                    .and_then(|value| value.to_str().ok())
+                    .map(|value| value.to_string());
+                let last_modified = response
+                    .headers()
+                    .get("Last-Modified")
+                    .and_then(|value| value.to_str().ok())
+                    .map(|value| value.to_string());
+
                 let mut reader = response.into_body();
                 match reader.read_to_string() {
                     Ok(body) => {
-                        self.write_cache(cache_path, &body);
+                        self.write_cache(&cache_path, &body);
+                        self.store_cache_metadata(
+                            &cache_path,
+                            HttpCacheMetadata {
+                                etag,
+                                last_modified,
+                            },
+                        );
                         Ok(body)
                     }
                     Err(err) => {
-                        if let Some(cached) = self.read_cache(cache_path, ttl) {
+                        if let Some(cached) = self.read_cache(&cache_path, ttl, true) {
                             Ok(cached)
                         } else {
                             Err(RegistryError::Network(err.to_string()))
@@ -176,7 +262,7 @@ impl RegistryClient {
                 }
             }
             Err(err) => {
-                if let Some(cached) = self.read_cache(cache_path, ttl) {
+                if let Some(cached) = self.read_cache(&cache_path, ttl, true) {
                     Ok(cached)
                 } else {
                     Err(map_network_error(err))

@@ -3,8 +3,8 @@ pub mod registry {
     /// Default base endpoint for the Nocta components registry.
     pub const DEFAULT_BASE_URL: &str = "https://www.nocta-ui.com/registry";
 
-    /// Relative cache location for the registry manifest.
-    pub const CACHE_PATH: &str = "registry/registry.json";
+    /// Relative cache filename for the registry manifest (within its namespace).
+    pub const CACHE_PATH: &str = "registry.json";
 
     /// Registry manifest filename served by the API.
     pub const REGISTRY_MANIFEST: &str = "registry.json";

@@ -86,6 +86,14 @@ npx @nocta-ui/cli add button --dry-run
 - Prints created paths plus ready-to-copy import statements, variants, and sizes
 - Supports `--dry-run` to preview all file writes and dependency changes without modifying the project
 
+### `cache`
+```bash
+npx @nocta-ui/cli cache
+npx @nocta-ui/cli cache clear --force
+```
+- Shows the location of the shared cache directory
+- `cache clear --force` removes cached registry data
+
 ### `--help`
 ```bash
 npx @nocta-ui/cli --help
@@ -177,9 +185,11 @@ The CLI also maintains a repository manifest named `nocta.workspace.json` at the
 ## Networking Notes
 - The registry, component source files, and design tokens are hosted remotely; commands need network access.
 - Built-in caching reduces repeated network calls and allows offline fallback:
-  - Cache directory: `./.nocta-cache` (override with `NOCTA_CACHE_DIR`)
-  - Default TTLs: registry 10 minutes, assets 24 hours (override via `NOCTA_CACHE_TTL_MS`, `NOCTA_ASSET_CACHE_TTL_MS`)
-  - On network failure, the CLI falls back to the most recent cached content when available.
+  - Cache directory: standard user cache folder (`~/.cache/nocta-ui` on Linux, `~/Library/Caches/nocta-ui` on macOS, `%LOCALAPPDATA%\Nocta UI\Cache` on Windows). Override with `NOCTA_CACHE_DIR`.
+  - Default TTLs: registry 10 minutes, assets 24 hours (override via `NOCTA_CACHE_TTL_MS`, `NOCTA_ASSET_CACHE_TTL_MS`).
+  - HTTP cache revalidation leverages `ETag`/`Last-Modified` headers to avoid full downloads.
+  - Offline fallback reuses the newest cached response (up to 30 days old).
+  - Run `nocta-ui cache` to inspect or clear cached artifacts.
 
 ## Troubleshooting
 - **Missing Tailwind CSS v4**: Install or upgrade with `npm install -D tailwindcss@latest` (or the equivalent for your package manager).

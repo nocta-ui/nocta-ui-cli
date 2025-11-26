@@ -724,7 +724,7 @@ dependencies = [
 
 [[package]]
 name = "nocta_cli"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -740,10 +740,11 @@ dependencies = [
 
 [[package]]
 name = "nocta_core"
-version = "0.2.3"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "base64",
+ "crc32fast",
  "directories",
  "once_cell",
  "owo-colors",
@@ -751,6 +752,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
+ "tempfile",
  "thiserror 2.0.17",
  "ureq",
 ]

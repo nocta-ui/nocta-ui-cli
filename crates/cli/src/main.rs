@@ -6,7 +6,7 @@ use std::process;
 
 use clap::{Parser, Subcommand};
 
-use commands::{CommandOutcome, CommandResult, add, init, list};
+use commands::{CommandOutcome, CommandResult, add, cache, init, list};
 use nocta_core::RegistryClient;
 use nocta_core::constants::registry::DEFAULT_BASE_URL;
 use reporter::ConsoleReporter;
@@ -32,6 +32,7 @@ enum Commands {
     Init(init::InitArgs),
     Add(add::AddArgs),
     List(list::ListArgs),
+    Cache(cache::CacheArgs),
 }
 
 fn main() {
@@ -56,5 +57,6 @@ fn run(reporter: &ConsoleReporter) -> CommandResult {
         Commands::Init(args) => init::run(&client, reporter, args),
         Commands::Add(args) => add::run(&client, reporter, args),
         Commands::List(args) => list::run(&client, reporter, args),
+        Commands::Cache(args) => cache::run(reporter, args),
     }
 }
