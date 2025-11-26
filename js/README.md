@@ -109,7 +109,7 @@ The Nocta CLI delivers near-instant command execution thanks to its **Rust-power
 
 ```json
 {
-  "$schema": "https://www.nocta-ui.com/registry/config-schema.json",
+  "$schema": "https://www.nocta-ui.com/registry/schema/config-schema.json",
   "style": "default",
   "tailwind": {
     "css": "app/globals.css"

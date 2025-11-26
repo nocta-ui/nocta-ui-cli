@@ -871,7 +871,7 @@ dependencies = [
 
 [[package]]
 name = "nocta_cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "nocta_core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "base64",
